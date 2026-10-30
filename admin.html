@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f766e">
+<title>Admin Presensi Sekolah</title>
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--tx:#111827;--mu:#6b7280;--pr:#0f766e;--bd:#e5e7eb;--ok:#15803d;--er:#b91c1c}
+@media(prefers-color-scheme:dark){:root{--bg:#0b1115;--card:#151d23;--tx:#e5e7eb;--mu:#9ca3af;--pr:#2dd4bf;--bd:#27333b;--ok:#86efac;--er:#fca5a5}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+#app{max-width:980px;margin:auto;padding:12px 16px 50px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+h1{font-size:19px;margin:6px 0}.mu{color:var(--mu);font-size:13px}
+nav{display:flex;gap:6px;overflow-x:auto;padding:8px 0}
+nav button{flex:none;border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 14px;border-radius:999px;cursor:pointer}
+nav button.on{background:var(--pr);color:var(--bg);border-color:var(--pr);font-weight:600}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+input,select,textarea{font:inherit;width:100%;padding:9px;border:1px solid var(--bd);border-radius:9px;background:var(--bg);color:var(--tx);margin:2px 0 8px}
+label{font-size:12px;color:var(--mu)}
+.b{font:inherit;background:var(--pr);color:var(--bg);border:0;border-radius:9px;padding:9px 14px;font-weight:600;cursor:pointer}
+.s{font:inherit;background:none;border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:4px 9px;font-size:12px;cursor:pointer}
+.row{display:flex;gap:8px;flex-wrap:wrap}.row>*{flex:1;min-width:130px}
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:12px}
+.stat div{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;text-align:center;color:var(--mu);font-size:13px}.stat b{display:block;font-size:26px;color:var(--tx)}
+.bar{display:flex;align-items:center;gap:8px;margin:6px 0}.bar span{width:70px;font-size:13px}.bar div{flex:1;height:14px;background:var(--bg);border-radius:7px;overflow:hidden}.bar i{display:block;height:100%;background:var(--pr)}.bar em{font-style:normal;font-size:12px;width:60px;text-align:right}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:6px 4px;border-bottom:1px solid var(--bd)}.wrap{overflow-x:auto}
+dialog{border:1px solid var(--bd);border-radius:14px;background:var(--card);color:var(--tx);max-width:520px;width:92%}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:10px 16px;border-radius:10px;display:none;max-width:90%;z-index:9}
+#login{max-width:380px;margin:12vh auto}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+<dialog id="dlg"></dialog>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let API=localStorage.getItem('api')||'',tok=sessionStorage.getItem('tok')||'',me=JSON.parse(sessionStorage.getItem('me')||'null'),SW=[],KL=[],IMP=[],cur='dash';
+const dev=(navigator.userAgent.match(/\(([^)]+)\)/)||[,''])[1].slice(0,60);
+
+function toast(m,bad){const t=$('#toast');t.textContent=m;t.style.background=bad?'var(--er)':'';t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',3500)}
+async function api(a,d={}){
+  if(!API)throw new Error('URL API belum diisi');
+  const r=await fetch(API,{method:'POST',body:JSON.stringify({a,t:tok,dev,...d})});const j=await r.json();
+  if(j.err==='SESI'){keluar(true);throw new Error('Sesi berakhir, silakan login lagi')}
+  if(!j.ok)throw new Error(j.err||'Gagal');return j;
+}
+const run=f=>async(...a)=>{try{await f(...a)}catch(e){toast(e.message,1)}};
+const V=h=>$('#view').innerHTML=h;
+const field=(id,l,v='',t='text',x='')=>`<label>${l}</label><input id="${id}" type="${t}" value="${esc(v)}" ${x}>`;
+const opts=(a,sel)=>a.map(o=>`<option ${o===sel?'selected':''}>${esc(o)}</option>`).join('');
+
+/* Login */
+function drawLogin(){
+  $('#app').innerHTML=`<div id="login" class="card"><h1>Presensi Sekolah</h1><div class="mu">Masuk untuk melanjutkan</div><br>
+  ${field('lApi','URL API (Apps Script)',API)}${field('lUser','Username')}${field('lPass','Password','','password')}
+  <button class="b" style="width:100%" id="lGo">Masuk</button></div>`;
+  $('#lPass').onkeydown=e=>{if(e.key==='Enter')$('#lGo').click()};
+  $('#lGo').onclick=run(async()=>{
+    API=$('#lApi').value.trim();localStorage.setItem('api',API);
+    const r=await api('login',{u:$('#lUser').value,p:$('#lPass').value});
+    tok=r.t;me=r.u;sessionStorage.setItem('tok',tok);sessionStorage.setItem('me',JSON.stringify(me));drawApp();
+  });
+}
+async function keluar(silent){
+  if(!silent&&tok)try{await api('logout')}catch(e){}
+  tok='';me=null;sessionStorage.clear();drawLogin();
+}
+
+/* Kerangka */
+const PG={dash:['Dashboard',pDash],siswa:['Siswa',pSiswa],kelas:['Kelas',pKelas],petugas:['Petugas',pPetugas],set:['Pengaturan',pSet],log:['Log',pLog]};
+function drawApp(){
+  const ks=me.peran==='Admin'?Object.keys(PG):['dash'];
+  $('#app').innerHTML=`<div class="top"><h1>Presensi Sekolah</h1><span class="mu">${esc(me.nama)} (${esc(me.peran)}) <button class="s" id="out">Keluar</button></span></div>
+  <nav>${ks.map(k=>`<button data-p="${k}">${PG[k][0]}</button>`).join('')}</nav><div id="view"></div>`;
+  $('#out').onclick=()=>keluar();
+  $('nav').onclick=e=>{if(e.target.dataset.p)goto(e.target.dataset.p)};
+  goto('dash');
+}
+function goto(p){cur=p;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));V('<div class="mu">Memuat...</div>');run(PG[p][1])()}
+
+/* Dashboard */
+async function pDash(){
+  const d=(await api('dashboard')).v;
+  V(`<div class="stat">${[['Siswa aktif',d.total],['Sudah presensi',d.sudah],['Belum',d.belum],['Terlambat',d.terlambat],['Izin/Sakit',d.izin],['Kehadiran',d.persen+'%']].map(x=>`<div><b>${x[1]}</b>${x[0]}</div>`).join('')}</div>
+  <div class="card"><b>Kehadiran per kelas</b> <span class="mu">${d.tgl}${d.aktif?'':' - bukan hari aktif sekolah'}</span>
+  ${d.kelas.map(k=>`<div class="bar"><span>${esc(k.nama)}</span><div><i style="width:${k.total?Math.round(k.sudah/k.total*100):0}%"></i></div><em>${k.sudah}/${k.total}</em></div>`).join('')||'<div class="mu">Belum ada data siswa.</div>'}</div>
+  <button class="s" onclick="goto('dash')">Muat ulang</button>`);
+}
+
+/* Siswa */
+async function pSiswa(){
+  const [a,b]=await Promise.all([api('siswa_list'),api('kelas_list')]);SW=a.v;KL=b.v;
+  V(`<div class="card"><div class="row"><input id="q" placeholder="Cari NIS / nama"><select id="fk"><option value="">Semua kelas</option>${KL.map(k=>`<option value="${esc(k.ID_Kelas)}">${esc(k.Nama_Kelas)}</option>`).join('')}</select></div>
+  <button class="b" id="add">+ Tambah siswa</button> <button class="s" id="imp">Impor Excel/CSV</button> <button class="s" id="foto">Impor foto</button>
+  <span class="mu" id="cnt"></span></div><div class="card wrap"><table id="tb"></table></div>`);
+  $('#q').oninput=$('#fk').onchange=tabelSiswa;tabelSiswa();
+  $('#add').onclick=()=>formSiswa();$('#imp').onclick=dlgImport;$('#foto').onclick=dlgFoto;
+  $('#tb').onclick=e=>{if(e.target.dataset.e)formSiswa(SW.find(s=>s.NIS===e.target.dataset.e))};
+}
+function tabelSiswa(){
+  const q=$('#q').value.toLowerCase(),k=$('#fk').value,L=SW.filter(s=>(!q||(s.NIS+s.Nama).toLowerCase().includes(q))&&(!k||s.ID_Kelas===k));
+  $('#cnt').textContent=` ${L.length} dari ${SW.length}`;
+  $('#tb').innerHTML='<tr><th>NIS</th><th>Nama</th><th>Kelas</th><th>Status</th><th></th></tr>'+L.slice(0,120).map(s=>`<tr><td>${esc(s.NIS)}</td><td>${esc(s.Nama)}</td><td>${esc(s.ID_Kelas)}</td><td>${esc(s.Status)}</td><td><button class="s" data-e="${esc(s.NIS)}">Edit</button></td></tr>`).join('');
+}
+function dlgOpen(h){const d=$('#dlg');d.innerHTML=h+'<br><button class="s" id="tutup">Tutup</button>';$('#tutup').onclick=()=>d.close();d.showModal()}
+function formSiswa(s){
+  const baru=!s;s=s||{Status:'Aktif'};
+  dlgOpen(`<b>${baru?'Tambah':'Edit'} siswa</b>${field('fNis','NIS',s.NIS,'text',baru?'':'readonly')}${field('fNisn','NISN',s.NISN)}${field('fNama','Nama lengkap',s.Nama)}
+  <label>Kelas</label><input id="fKel" list="dl" value="${esc(s.ID_Kelas||'')}"><datalist id="dl">${KL.map(k=>`<option value="${esc(k.ID_Kelas)}">`).join('')}</datalist>
+  ${field('fBar','Kode barcode (kosong = NIS)',s.Kode_Barcode)}${field('fWa','WA orang tua',s.WA_Ortu)}${field('fEm','Email orang tua',s.Email_Ortu)}
+  <label>Status</label><select id="fSt">${opts(['Aktif','Nonaktif'],s.Status)}</select><button class="b" id="fOk">Simpan</button>`);
+  $('#fOk').onclick=run(async()=>{
+    await api('siswa_save',{baru,v:{NIS:$('#fNis').value,NISN:$('#fNisn').value,Nama:$('#fNama').value,ID_Kelas:$('#fKel').value,Kode_Barcode:$('#fBar').value,WA_Ortu:$('#fWa').value,Email_Ortu:$('#fEm').value,Status:$('#fSt').value}});
+    $('#dlg').close();toast('Tersimpan');pSiswa();
+  });
+}
+function dlgImport(){
+  IMP=[];
+  dlgOpen(`<b>Impor siswa</b><div class="mu">Kolom berurutan: NIS, NISN, Nama, Kelas, Kode barcode, WA ortu, Email ortu. Baris dengan NIS yang sudah ada dilewati.</div><br>
+  <button class="s" id="tpl">Unduh template</button><br><br><label>File Excel (.xlsx) atau CSV</label><input id="fl" type="file" accept=".xlsx,.xls,.csv">
+  <label>Atau tempel dari Excel</label><textarea id="pa" rows="4"></textarea><div class="mu" id="pv"></div><button class="b" id="go">Impor</button><div class="mu" id="hs"></div>`);
+  const set=r=>{IMP=r.filter(x=>x[0]&&String(x[0]).toLowerCase()!=='nis').map(x=>x.map(c=>String(c??'').trim()));$('#pv').textContent=IMP.length+' baris siap diimpor'};
+  $('#tpl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['NIS,NISN,Nama,Kelas,Kode Barcode,WA Ortu,Email Ortu\n12345,0012345678,Budi Santoso,7A,,08123456789,ortu@mail.com\n'],{type:'text/csv'}));a.download='template-siswa.csv';a.click()};
+  $('#fl').onchange=run(async e=>{const f=e.target.files[0];if(!f)return;const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});set(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false}))});
+  $('#pa').oninput=e=>set(e.target.value.split('\n').map(l=>l.split(/\t|;/)));
+  $('#go').onclick=run(async()=>{
+    if(!IMP.length)return toast('Belum ada data',1);
+    let b=0,l=0,er=[];
+    for(let i=0;i<IMP.length;i+=200){$('#hs').textContent='Mengirim '+Math.min(i+200,IMP.length)+'/'+IMP.length+'...';
+      const r=await api('siswa_import',{rows:IMP.slice(i,i+200)});b+=r.baru;l+=r.lewat;er=er.concat(r.err.map(x=>'Batch '+(i/200+1)+' '+x))}
+    $('#hs').innerHTML=`Selesai: ${b} ditambahkan, ${l} dilewati.<br>${er.map(esc).join('<br>')}`;pSiswa.skip=1;
+  });
+}
+function dlgFoto(){
+  dlgOpen(`<b>Impor foto</b><div class="mu">Pilih banyak file foto. Nama file harus NIS, contoh 12345.jpg. Foto otomatis dikecilkan dan dipotong portrait agar hemat ruang.</div><br>
+  <input id="ff" type="file" accept="image/*" multiple><div class="mu" id="fh"></div>`);
+  $('#ff').onchange=run(async e=>{
+    const fs=[...e.target.files];let ok=0,gl=[];
+    for(let i=0;i<fs.length;i+=10){
+      const items=[];
+      for(const f of fs.slice(i,i+10))items.push({nis:f.name.replace(/\.[^.]+$/,''),data:await thumb(f)});
+      const r=await api('foto_import',{items});ok+=r.n;gl=gl.concat(r.gagal);$('#fh').textContent=`Diproses ${Math.min(i+10,fs.length)}/${fs.length}`;
+    }
+    $('#fh').innerHTML=`Selesai: ${ok} foto tersimpan.<br>${gl.map(esc).join('<br>')}`;
+  });
+}
+function thumb(f){return new Promise((ok,no)=>{const im=new Image();im.onload=()=>{const W=120,H=160,c=document.createElement('canvas');c.width=W;c.height=H;
+  const r=Math.max(W/im.width,H/im.height),w=im.width*r,h=im.height*r;c.getContext('2d').drawImage(im,(W-w)/2,(H-h)/2,w,h);ok(c.toDataURL('image/jpeg',.7))};im.onerror=()=>no(new Error('Gambar rusak: '+f.name));im.src=URL.createObjectURL(f)})}
+
+/* Kelas */
+async function pKelas(){
+  KL=(await api('kelas_list')).v;
+  V(`<div class="card"><b>Tambah / ubah kelas</b><div class="row">${field('kId','ID kelas (mis. 7A)')}${field('kTg','Tingkat')}${field('kWl','Wali kelas')}${field('kTa','Tahun ajaran','2026/2027')}</div>
+  <label>Status</label><select id="kSt">${opts(['Aktif','Nonaktif'])}</select><button class="b" id="kOk">Simpan</button></div>
+  <div class="card wrap"><table id="tk"><tr><th>ID</th><th>Tingkat</th><th>Wali</th><th>TA</th><th>Status</th><th></th></tr>${KL.map((k,i)=>`<tr><td>${esc(k.ID_Kelas)}</td><td>${esc(k.Tingkat)}</td><td>${esc(k.Wali_Kelas)}</td><td>${esc(k.Tahun_Ajaran)}</td><td>${esc(k.Status)}</td><td><button class="s" data-i="${i}">Edit</button></td></tr>`).join('')}</table></div>`);
+  $('#tk').onclick=e=>{if(e.target.dataset.i){const k=KL[e.target.dataset.i];$('#kId').value=k.ID_Kelas;$('#kTg').value=k.Tingkat;$('#kWl').value=k.Wali_Kelas;$('#kTa').value=k.Tahun_Ajaran;$('#kSt').value=k.Status;scrollTo(0,0)}};
+  $('#kOk').onclick=run(async()=>{await api('kelas_save',{v:{ID_Kelas:$('#kId').value,Tingkat:$('#kTg').value,Wali_Kelas:$('#kWl').value,Tahun_Ajaran:$('#kTa').value,Status:$('#kSt').value}});toast('Tersimpan');pKelas()});
+}
+
+/* Petugas */
+async function pPetugas(){
+  const L=(await api('petugas_list')).v;
+  V(`<div class="card"><b>Tambah / ubah akun</b><div class="row">${field('uU','Username')}${field('uN','Nama')}${field('uP','Password (min 8; kosong = tidak diubah)','','password')}</div>
+  <div class="row"><div><label>Peran</label><select id="uR">${opts(['Petugas','Admin'])}</select></div><div><label>Status</label><select id="uS">${opts(['Aktif','Nonaktif'])}</select></div></div><button class="b" id="uOk">Simpan</button></div>
+  <div class="card wrap"><table id="tu"><tr><th>Username</th><th>Nama</th><th>Peran</th><th>Status</th><th>Login terakhir</th><th></th></tr>${L.map((p,i)=>`<tr><td>${esc(p.Username)}</td><td>${esc(p.Nama)}</td><td>${esc(p.Peran)}</td><td>${esc(p.Status)}</td><td>${esc(p.Login_Terakhir)}</td><td><button class="s" data-i="${i}">Edit</button></td></tr>`).join('')}</table></div>`);
+  $('#tu').onclick=e=>{if(e.target.dataset.i){const p=L[e.target.dataset.i];$('#uU').value=p.Username;$('#uN').value=p.Nama;$('#uR').value=p.Peran;$('#uS').value=p.Status;scrollTo(0,0)}};
+  $('#uOk').onclick=run(async()=>{await api('petugas_save',{v:{Username:$('#uU').value,Nama:$('#uN').value,Password:$('#uP').value,Peran:$('#uR').value,Status:$('#uS').value}});toast('Tersimpan');pPetugas()});
+}
+
+/* Pengaturan */
+async function pSet(){
+  const s=(await api('pengaturan_get')).v,H=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'],M={barcode:'Barcode',qr:'QR Code',nis:'Ketik NIS',wajah:'Wajah',sidik:'Sidik jari (perangkat eksternal)'};
+  V(`<div class="card"><b>Jam presensi</b><div class="row">${field('sM','Jam mulai',s.jam_mulai,'time')}${field('sB','Batas terlambat',s.jam_batas_terlambat,'time')}${field('sE','Jam berakhir',s.jam_selesai,'time')}${field('sP','Mulai jam pulang',s.jam_mulai_pulang,'time')}</div>
+  <label>Hari aktif sekolah</label><div>${H.map((h,i)=>`<label><input type="checkbox" class="hr" value="${i+1}" ${s.hari_aktif.split(',').includes(String(i+1))?'checked':''} style="width:auto;margin:0 4px 0 8px">${h}</label>`).join('')}</div><br>
+  ${field('sL','Hari libur (yyyy-mm-dd, pisah koma)',s.hari_libur)}
+  <div class="row">${field('sT','Tahun ajaran',s.tahun_ajaran)}<div><label>Semester</label><select id="sS">${opts(['Ganjil','Genap'],s.semester)}</select></div></div>
+  <label>Metode presensi yang diaktifkan</label><div>${Object.keys(M).map(k=>`<label><input type="checkbox" class="mt" value="${k}" ${s.metode_aktif.split(',').includes(k)?'checked':''} style="width:auto;margin:0 4px 0 8px">${M[k]}</label>`).join('<br>')}</div><br>
+  <label><input type="checkbox" id="sN" ${s.notif_ortu==='ya'?'checked':''} style="width:auto;margin:0 6px 0 0">Kirim notifikasi email ke orang tua</label><br><br><button class="b" id="sOk">Simpan pengaturan</button></div>`);
+  $('#sOk').onclick=run(async()=>{
+    const ck=c=>[...document.querySelectorAll('.'+c+':checked')].map(x=>x.value).join(',');
+    await api('pengaturan_set',{v:{jam_mulai:$('#sM').value,jam_batas_terlambat:$('#sB').value,jam_selesai:$('#sE').value,jam_mulai_pulang:$('#sP').value,hari_aktif:ck('hr'),hari_libur:$('#sL').value.replace(/\s/g,''),tahun_ajaran:$('#sT').value,semester:$('#sS').value,metode_aktif:ck('mt'),notif_ortu:$('#sN').checked?'ya':'tidak'}});
+    toast('Pengaturan tersimpan');
+  });
+}
+
+/* Log */
+async function pLog(){
+  const L=(await api('log_list')).v;
+  V(`<div class="card wrap"><b>200 aktivitas terakhir</b><table><tr><th>Waktu</th><th>Pengguna</th><th>Aksi</th><th>Detail</th></tr>${L.map(l=>`<tr><td>${esc(l.Waktu)}</td><td>${esc(l.Pengguna)}</td><td>${esc(l.Aksi)}</td><td>${esc(l.Detail)}</td></tr>`).join('')}</table></div>`);
+}
+
+me&&tok?drawApp():drawLogin();
+</script>
+</body>
+</html>
