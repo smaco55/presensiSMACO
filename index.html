@@ -63,6 +63,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td{padding:5px 3px;bord
 <div class="card"><b>10 presensi terakhir</b><table id="rec"></table></div>
 </div>
 
+<script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script>
 const $=s=>document.querySelector(s);
@@ -71,7 +72,7 @@ const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 const idb=new Promise((ok,no)=>{const r=indexedDB.open('presensi',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>ok(r.result);r.onerror=no});
 const kv=async(k,v)=>{const d=await idb;return new Promise((ok,no)=>{const s=d.transaction('kv',v===undefined?'readonly':'readwrite').objectStore('kv'),q=v===undefined?s.get(k):s.put(v,k);q.onsuccess=()=>ok(q.result);q.onerror=no})};
 
-let API=localStorage.getItem('api')||'',tok=sessionStorage.getItem('tok')||'',me=JSON.parse(sessionStorage.getItem('me')||'null'),
+let API=window.PRESENSI_API||localStorage.getItem('api')||'',tok=sessionStorage.getItem('tok')||'',me=JSON.parse(sessionStorage.getItem('me')||'null'),
     D=null,M={},Q=[],off=0,sudah={},rec=[],last={},fl=false,tab='scan',qr=null,t0=0;
 const dev=(navigator.userAgent.match(/\(([^)]+)\)/)||[,''])[1].slice(0,60);
 const jkt=()=>new Date(Date.now()+off).toLocaleTimeString('en-GB',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit'});
@@ -82,9 +83,9 @@ async function api(a,d={}){
   if(!j.ok)throw new Error(j.err||'Gagal');return j;
 }
 /* Login */
-function showLogin(m){$('#lm').textContent=m||'Masuk untuk memulai';$('#lApi').value=API;$('#login').style.display='flex'}
+function showLogin(m){$('#lm').textContent=m||'Masuk untuk memulai';$('#lApi').value=API;$('#lApi').style.display=window.PRESENSI_API?'none':'block';$('#login').style.display='flex'}
 $('#lGo').onclick=async()=>{
-  try{API=$('#lApi').value.trim();localStorage.setItem('api',API);
+  try{if(!window.PRESENSI_API){API=$('#lApi').value.trim();localStorage.setItem('api',API)}
     const r=await fetch(API,{method:'POST',body:JSON.stringify({a:'login',u:$('#lU').value,p:$('#lP').value,dev})}),j=await r.json();
     if(!j.ok)throw new Error(j.err);
     tok=j.t;me=j.u;sessionStorage.setItem('tok',tok);sessionStorage.setItem('me',JSON.stringify(me));$('#login').style.display='none';$('#lP').value='';start();

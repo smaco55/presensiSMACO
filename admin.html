@@ -38,11 +38,12 @@ dialog{border:1px solid var(--bd);border-radius:14px;background:var(--card);colo
 <div id="app"></div>
 <div id="toast"></div>
 <dialog id="dlg"></dialog>
+<script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-let API=localStorage.getItem('api')||'',tok=sessionStorage.getItem('tok')||'',me=JSON.parse(sessionStorage.getItem('me')||'null'),SW=[],KL=[],IMP=[],cur='dash';
+let API=window.PRESENSI_API||localStorage.getItem('api')||'',tok=sessionStorage.getItem('tok')||'',me=JSON.parse(sessionStorage.getItem('me')||'null'),SW=[],KL=[],IMP=[],cur='dash';
 const dev=(navigator.userAgent.match(/\(([^)]+)\)/)||[,''])[1].slice(0,60);
 
 function toast(m,bad){const t=$('#toast');t.textContent=m;t.style.background=bad?'var(--er)':'';t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',3500)}
@@ -60,11 +61,11 @@ const opts=(a,sel)=>a.map(o=>`<option ${o===sel?'selected':''}>${esc(o)}</option
 /* Login */
 function drawLogin(){
   $('#app').innerHTML=`<div id="login" class="card"><h1>Presensi Sekolah</h1><div class="mu">Masuk untuk melanjutkan</div><br>
-  ${field('lApi','URL API (Apps Script)',API)}${field('lUser','Username')}${field('lPass','Password','','password')}
+  ${window.PRESENSI_API?'':field('lApi','URL API (Apps Script)',API)}${field('lUser','Username')}${field('lPass','Password','','password')}
   <button class="b" style="width:100%" id="lGo">Masuk</button><br><br><a class="mu" href="index.html">Ke halaman presensi</a></div>`;
   $('#lPass').onkeydown=e=>{if(e.key==='Enter')$('#lGo').click()};
   $('#lGo').onclick=run(async()=>{
-    API=$('#lApi').value.trim();localStorage.setItem('api',API);
+    if(!window.PRESENSI_API){API=$('#lApi').value.trim();localStorage.setItem('api',API)}
     const r=await api('login',{u:$('#lUser').value,p:$('#lPass').value});
     tok=r.t;me=r.u;sessionStorage.setItem('tok',tok);sessionStorage.setItem('me',JSON.stringify(me));drawApp();
     if(r.awal)setTimeout(()=>toast('Password masih bawaan. Segera ganti lewat tombol Ganti password.',1),600);
