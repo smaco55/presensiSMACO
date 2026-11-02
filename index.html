@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0f766e">
 <title>Presensi Kedatangan</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
 <style>
 :root{--bg:#f4f6f8;--card:#fff;--tx:#111827;--mu:#6b7280;--pr:#0f766e;--bd:#e5e7eb;--ok:#15803d;--okb:#dcfce7;--wn:#a16207;--wnb:#fef9c3;--er:#b91c1c;--erb:#fee2e2}
 @media(prefers-color-scheme:dark){:root{--bg:#0b1115;--card:#151d23;--tx:#e5e7eb;--mu:#9ca3af;--pr:#2dd4bf;--bd:#27333b;--ok:#86efac;--okb:#14532d;--wn:#fde047;--wnb:#422006;--er:#fca5a5;--erb:#450a0a}}
@@ -55,6 +57,8 @@ table{width:100%;border-collapse:collapse;font-size:13px}td{padding:5px 3px;bord
 </section>
 <section id="s-cam" class="card" style="display:none"><div id="qr"></div><div class="mu">Arahkan barcode atau QR code ke kamera.</div></section>
 
+<section id="s-wajah" class="card" style="display:none"><video id="vid" autoplay playsinline muted style="width:100%;max-height:340px;border-radius:10px;background:#000;object-fit:cover"></video>
+<div id="wmsg" style="font-size:20px;font-weight:600;text-align:center;margin-top:8px">Memuat...</div></section>
 <div class="stat" id="stat"></div>
 <div class="card"><b>10 presensi terakhir</b><table id="rec"></table></div>
 </div>
@@ -87,7 +91,7 @@ $('#lGo').onclick=async()=>{
   }catch(e){$('#lm').textContent=e.message}
 };
 $('#lP').onkeydown=e=>{if(e.key==='Enter')$('#lGo').click()};
-$('#out').onclick=async()=>{try{await api('logout')}catch(e){}tok='';sessionStorage.clear();showLogin()};
+$('#out').onclick=async()=>{try{await api('logout')}catch(e){}D=null;kv('D',null);tok='';sessionStorage.clear();showLogin()};
 
 /* Sinkron data */
 async function sync(full){
@@ -95,7 +99,9 @@ async function sync(full){
   off=r.now-Date.now();
   const s2=r.sudah;Q.forEach(i=>{const p=M[i.kode];if(p){const k=p.nis+'|'+i.jenis;if(!s2[k]&&sudah[k])s2[k]=sudah[k]}});sudah=s2;
   D=D||{};D.st=r.st;D.aktif=r.aktif;D.tgl=r.tgl;
-  if(full){D.orang=r.orang;await kv('D',D);buildMap()}
+  if(full){D.orang=r.orang;
+    if(r.st.metode_aktif.split(',').includes('wajah')){try{D.bio=(await api('bio_data')).v}catch(e){}}
+    await kv('D',D);buildMap()}
   $('#tgl').textContent=r.tgl;ringkas();
 }
 function buildMap(){M={};D.orang.forEach(p=>{M[p.nis]=p;M[p.kode]=p})}
@@ -184,15 +190,17 @@ function drawTabs(){
   const m=D.st.metode_aktif.split(','),T=[];
   if(m.includes('barcode')||m.includes('nis'))T.push(['scan','Scanner / Ketik NIS']);
   if(m.includes('barcode')||m.includes('qr'))T.push(['cam','Kamera']);
+  if(m.includes('wajah'))T.push(['wajah','Wajah']);
   $('#tabs').innerHTML=T.map(t=>'<button data-t="'+t[0]+'">'+t[1]+'</button>').join('')||'<span class="mu">Tidak ada metode aktif. Atur di Admin.</span>';
   if(T.length)go(T.some(t=>t[0]===tab)?tab:T[0][0]);
 }
 $('#tabs').onclick=e=>{if(e.target.dataset.t)go(e.target.dataset.t)};
 function go(t){
-  tab=t;if(qr){qr.stop().then(()=>qr.clear()).catch(()=>{});qr=null}
+  tab=t;faceStop();if(qr){qr.stop().then(()=>qr.clear()).catch(()=>{});qr=null}
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
-  $('#s-scan').style.display=t==='scan'?'block':'none';$('#s-cam').style.display=t==='cam'?'block':'none';
+  $('#s-scan').style.display=t==='scan'?'block':'none';$('#s-cam').style.display=t==='cam'?'block':'none';$('#s-wajah').style.display=t==='wajah'?'block':'none';
   if(t==='scan')$('#scan').focus();
+  if(t==='wajah')startFace();
   if(t==='cam'){
     qr=new Html5Qrcode('qr');
     const cb=(x,r)=>mark(x,(r&&r.result&&r.result.format&&r.result.format.formatName==='QR_CODE')?'qr':'barcode'),cf={fps:10,qrbox:{width:300,height:160}};
@@ -209,7 +217,72 @@ $('#scan').onkeydown=e=>{
 document.addEventListener('click',e=>{if(tab==='scan'&&!['SELECT','OPTION','BUTTON','INPUT'].includes(e.target.tagName))$('#scan').focus()});
 $('#scan').onblur=()=>setTimeout(()=>{if(tab==='scan'&&document.activeElement===document.body)$('#scan').focus()},200);
 
+/* ===== Pengenalan wajah + liveness ===== */
+// Ambang bisa disetel bila terlalu ketat/longgar di perangkat sekolah.
+const JARAK_WAJAH=0.5,EAR_BUKA=0.26,EAR_TUTUP=0.2,TOLEH_KIRI=0.36,TOLEH_KANAN=0.64,WAKTU_TANTANGAN=7000;
+let fStream=null,fMatcher=null,modelsOk=false,fS={step:'cari'};
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const ear=p=>(dist(p[1],p[5])+dist(p[2],p[4]))/(2*dist(p[0],p[3]));
+const setMsg=t=>{$('#wmsg').textContent=t};
+async function loadModels(){
+  if(modelsOk)return;
+  if(!window.faceapi)await new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js';s.onload=ok;s.onerror=()=>no(new Error('Pustaka wajah gagal dimuat'));document.head.appendChild(s)});
+  const u='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/';
+  await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(u),faceapi.nets.faceLandmark68TinyNet.loadFromUri(u),faceapi.nets.faceRecognitionNet.loadFromUri(u)]);
+  modelsOk=true;
+}
+function faceStop(){if(fStream){fStream.getTracks().forEach(t=>t.stop());fStream=null}}
+function faceReset(m){fS={step:'cari',cnt:0,id:null,wait:Date.now()+1500};setMsg(m)}
+async function startFace(){
+  try{
+    setMsg('Memuat model wajah...');await loadModels();
+    const lab=(D.bio||[]).filter(b=>M[b.nis]).map(b=>new faceapi.LabeledFaceDescriptors(b.nis,b.t.map(a=>new Float32Array(a))));
+    if(!lab.length)return setMsg('Belum ada wajah terdaftar. Daftarkan di menu Admin.');
+    fMatcher=new faceapi.FaceMatcher(lab,JARAK_WAJAH);
+    fStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:640,height:480}});
+    $('#vid').srcObject=fStream;faceReset('Hadapkan wajah ke kamera');
+    const loop=async()=>{if(!fStream)return;try{await faceTick()}catch(e){}setTimeout(loop,fS.step==='tantang'?120:450)};loop();
+  }catch(e){setMsg('Wajah gagal dimulai: '+e.message)}
+}
+async function faceTick(){
+  const v=$('#vid');if(v.readyState<2||(fS.wait&&Date.now()<fS.wait))return;
+  const opt=new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:0.5});
+  if(fS.step==='cari'||fS.step==='cek'){
+    const d=await faceapi.detectSingleFace(v,opt).withFaceLandmarks(true).withFaceDescriptor();
+    if(!d){fS.cnt=0;fS.id=null;fS.step='cari';return setMsg('Hadapkan wajah ke kamera')}
+    const m=fMatcher.findBestMatch(d.descriptor);
+    if(fS.step==='cek'){ // verifikasi akhir: orangnya harus sama dengan yang lolos tantangan
+      if(m.label===fS.id){const id=fS.id;mark(id,'wajah');faceReset('Selesai. Berikutnya...')}
+      else faceReset('Wajah berbeda, ulangi');
+      return;
+    }
+    if(m.label==='unknown'){fS.cnt=0;return setMsg('Wajah tidak dikenali')}
+    if(m.label===fS.id)fS.cnt++;else{fS.id=m.label;fS.cnt=1}
+    if(fS.cnt>=2){ // dikenali dua kali berturut-turut: beri tantangan acak
+      fS.tt=Math.random()<.5?'kedip':'toleh';fS.dir=Math.random()<.5?'kiri':'kanan';fS.t=Date.now();fS.open=false;fS.step='tantang';
+      setMsg(fS.tt==='kedip'?'Kedipkan mata Anda':'Palingkan wajah ke sisi '+fS.dir+' layar');
+    }else setMsg('Memeriksa...');
+    return;
+  }
+  if(fS.step==='tantang'){
+    if(Date.now()-fS.t>WAKTU_TANTANGAN)return faceReset('Waktu habis, ulangi');
+    const d=await faceapi.detectSingleFace(v,opt).withFaceLandmarks(true);
+    if(!d)return;
+    const L=d.landmarks;let ok=false;
+    if(fS.tt==='kedip'){
+      const e=(ear(L.getLeftEye())+ear(L.getRightEye()))/2;
+      if(e>EAR_BUKA)fS.open=true;
+      if(fS.open&&e<EAR_TUTUP)ok=true;
+    }else{
+      const P=L.positions,r=(P[30].x-P[0].x)/(P[16].x-P[0].x);
+      ok=fS.dir==='kiri'?r<TOLEH_KIRI:r>TOLEH_KANAN;
+    }
+    if(ok){fS.step='cek';fS.cnt=0;setMsg('Memverifikasi...')}
+  }
+}
+
 me&&tok?start():showLogin();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
 </script>
 </body>
 </html>
