@@ -31,6 +31,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 dialog{border:1px solid var(--bd);border-radius:14px;background:var(--card);color:var(--tx);max-width:520px;width:92%}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:10px 16px;border-radius:10px;display:none;max-width:90%;z-index:9}
 #login{max-width:380px;margin:12vh auto}
+.bd{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}.bd.ok{background:rgba(34,197,94,.18);color:var(--ok)}.bd.er{background:rgba(239,68,68,.18);color:var(--er)}.bd.wn{background:rgba(234,179,8,.22);color:#ca8a04}.bd.na{background:var(--bg);color:var(--mu)}
 @media print{body *{visibility:hidden}.cetak,.cetak *{visibility:visible}.cetak{position:absolute;left:0;top:0;width:100%;border:0}.cetak button{display:none}}
 </style>
 </head>
@@ -77,7 +78,7 @@ async function keluar(silent){
 }
 
 /* Kerangka */
-const PG={dash:['Dashboard',pDash],siswa:['Siswa',pSiswa],guru:['Guru',pGuru],kelas:['Kelas',pKelas],petugas:['Petugas',pPetugas],set:['Pengaturan',pSet],lap:['Laporan',pLap],dev:['Perangkat',pDev],log:['Log',pLog]};
+const PG={dash:['Dashboard',pDash],siswa:['Siswa',pSiswa],guru:['Guru',pGuru],kelas:['Kelas',pKelas],petugas:['Petugas',pPetugas],set:['Pengaturan',pSet],lap:['Laporan',pLap],notif:['Notifikasi',pNotif],dev:['Perangkat',pDev],log:['Log',pLog]};
 function drawApp(){
   const ks=me.peran==='Admin'?Object.keys(PG):['dash'];
   $('#app').innerHTML=`<div class="top"><h1>Presensi Sekolah</h1><span class="mu">${esc(me.nama)} (${esc(me.peran)}) <a class="s" href="index.html" style="text-decoration:none">Halaman Presensi</a> <button class="s" id="pw">Ganti password</button> <button class="s" id="out">Keluar</button></span></div>
@@ -96,8 +97,7 @@ async function pDash(){
   <div class="card"><b>Kehadiran per kelas</b> <span class="mu">${d.tgl}${d.aktif?'':' - bukan hari aktif sekolah'}</span>
   ${d.kelas.map(k=>`<div class="bar"><span>${esc(k.nama)}</span><div><i style="width:${k.total?Math.round(k.sudah/k.total*100):0}%"></i></div><em>${k.sudah}/${k.total}</em></div>`).join('')||'<div class="mu">Belum ada data siswa.</div>'}</div>
   <div class="card"><b>Tren 7 hari (siswa masuk)</b><div style="display:flex;align-items:flex-end;gap:8px;margin-top:10px">${d.tren.map(t=>{const mx=Math.max(1,...d.tren.map(x=>x.n));return `<div style="flex:1;text-align:center;font-size:11px;color:var(--mu)"><div style="background:var(--pr);height:${Math.round(t.n/mx*90)+2}px;border-radius:4px 4px 0 0"></div>${t.n}<br>${t.tgl.slice(5)}</div>`}).join('')}</div></div>
-  <button class="s" onclick="goto('dash')">Muat ulang</button> <button class="s" id="alpa">Kirim email ke orang tua siswa yang belum hadir</button>`);
-  $('#alpa').onclick=run(async()=>{if(!confirm('Kirim email ke orang tua semua siswa yang belum tercatat hari ini? Hanya bisa sekali sehari, setelah jam presensi berakhir.'))return;const r=await api('notif_alpa');toast(`Terkirim ${r.kirim} dari ${r.belum} siswa belum hadir (${r.tanpa} tanpa email)`)});
+  <button class="s" onclick="goto('dash')">Muat ulang</button> <button class="s" onclick="goto('notif')">Kelola notifikasi</button>`);
 }
 
 /* Siswa */
@@ -231,12 +231,12 @@ async function pSet(){
   V(`<div class="card"><b>Jam presensi</b><div class="row">${field('sM','Jam mulai',s.jam_mulai,'time')}${field('sB','Batas terlambat',s.jam_batas_terlambat,'time')}${field('sE','Jam berakhir',s.jam_selesai,'time')}${field('sP','Mulai jam pulang',s.jam_mulai_pulang,'time')}</div>
   <label>Hari aktif sekolah</label><div>${H.map((h,i)=>`<label><input type="checkbox" class="hr" value="${i+1}" ${s.hari_aktif.split(',').includes(String(i+1))?'checked':''} style="width:auto;margin:0 4px 0 8px">${h}</label>`).join('')}</div><br>
   ${field('sL','Hari libur (yyyy-mm-dd, pisah koma)',s.hari_libur)}
-  <div class="row">${field('sT','Tahun ajaran',s.tahun_ajaran)}<div><label>Semester</label><select id="sS">${opts(['Ganjil','Genap'],s.semester)}</select></div></div>
+  ${field('sNm','Nama sekolah (dipakai di pesan ke orang tua)',s.nama_sekolah)}<div class="row">${field('sT','Tahun ajaran',s.tahun_ajaran)}<div><label>Semester</label><select id="sS">${opts(['Ganjil','Genap'],s.semester)}</select></div></div>
   <label>Metode presensi yang diaktifkan</label><div>${Object.keys(M).map(k=>`<label><input type="checkbox" class="mt" value="${k}" ${s.metode_aktif.split(',').includes(k)?'checked':''} style="width:auto;margin:0 4px 0 8px">${M[k]}</label>`).join('<br>')}</div><br>
   <label><input type="checkbox" id="sN" ${s.notif_ortu==='ya'?'checked':''} style="width:auto;margin:0 6px 0 0">Kirim notifikasi email ke orang tua</label><br><br><button class="b" id="sOk">Simpan pengaturan</button></div>`);
   $('#sOk').onclick=run(async()=>{
     const ck=c=>[...document.querySelectorAll('.'+c+':checked')].map(x=>x.value).join(',');
-    await api('pengaturan_set',{v:{jam_mulai:$('#sM').value,jam_batas_terlambat:$('#sB').value,jam_selesai:$('#sE').value,jam_mulai_pulang:$('#sP').value,hari_aktif:ck('hr'),hari_libur:$('#sL').value.replace(/\s/g,''),tahun_ajaran:$('#sT').value,semester:$('#sS').value,metode_aktif:ck('mt'),notif_ortu:$('#sN').checked?'ya':'tidak'}});
+    await api('pengaturan_set',{v:{jam_mulai:$('#sM').value,jam_batas_terlambat:$('#sB').value,jam_selesai:$('#sE').value,jam_mulai_pulang:$('#sP').value,hari_aktif:ck('hr'),hari_libur:$('#sL').value.replace(/\s/g,''),tahun_ajaran:$('#sT').value,nama_sekolah:$('#sNm').value,semester:$('#sS').value,metode_aktif:ck('mt'),notif_ortu:$('#sN').checked?'ya':'tidak'}});
     toast('Pengaturan tersimpan');
   });
 }
@@ -277,6 +277,29 @@ async function pLap(){
   $('#rXl').onclick=()=>xl(RR,'rekap-'+$('#rB').value);
   $('#rPr').onclick=()=>cetak('#cRek');
   $('#zOk').onclick=run(async()=>{await api('izin_simpan',{nis:$('#zN').value,jenis:$('#zJ').value,tgl:$('#zT').value,ket:$('#zK').value});toast('Tersimpan');$('#zN').value=''});
+}
+
+/* Notifikasi orang tua */
+const BD={'Terkirim':'ok','Gagal':'er','Menunggu':'wn','Tanpa kontak':'na','Dibatalkan':'na'};
+const bd=s=>`<span class="bd ${BD[s]||'na'}">${esc(s)}</span>`;
+let NF={tgl:'',jenis:''};
+const waAksi=x=>x.wa==='Menunggu'?`<a class="s" style="text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/${esc(x.nomor)}?text=${encodeURIComponent(x.pesan)}">Kirim WA</a> <button class="s" data-t="${esc(x.id)}" data-s="Terkirim">Tandai terkirim</button>`:x.wa==='Terkirim'?`<button class="s" data-t="${esc(x.id)}" data-s="Menunggu">Batal tandai</button>`:'';
+async function pNotif(){
+  if(!NF.tgl)NF.tgl=new Date().toLocaleDateString('sv-SE');
+  const L=(await api('notif_list',{tgl:NF.tgl,jenis:NF.jenis})).v;
+  const ring=j=>{const a=L.filter(x=>x.jenis===j);return `<div><b>${a.length}</b>${j}<br><span style="font-size:11px">email ✓ ${a.filter(x=>x.email==='Terkirim').length} • WA ✓ ${a.filter(x=>x.wa==='Terkirim').length}<br>menunggu ${a.filter(x=>x.email==='Menunggu'||x.email==='Gagal'||x.wa==='Menunggu').length}</span></div>`};
+  V(`<div class="card"><b>Kelola notifikasi orang tua</b>
+  <div class="mu">Terlambat: email dikirim otomatis saat siswa terlambat (jika diaktifkan di Pengaturan). Tidak hadir: siapkan daftar setelah presensi berakhir, lalu kirim email massal atau WA satu per satu (WA dibuka dengan pesan sudah terisi, lalu tandai terkirim).</div><br>
+  <div class="row">${field('nT','Tanggal',NF.tgl,'date')}<div><label>Jenis</label><select id="nJ"><option value="">Semua</option><option>Terlambat</option><option>Tidak hadir</option></select></div></div>
+  <button class="s" id="nMuat">Tampilkan</button> <button class="b" id="nSiap">Siapkan daftar tidak hadir (hari ini)</button> <button class="b" id="nEm">Kirim email yang menunggu (hari ini)</button>
+  <div class="stat" style="margin-top:10px">${ring('Terlambat')}${ring('Tidak hadir')}</div></div>
+  <div class="card wrap"><table id="tN"><tr><th>Nama</th><th>Kelas</th><th>Jenis</th><th>Email</th><th>WhatsApp</th></tr>${L.map(x=>`<tr><td>${esc(x.nama)}</td><td>${esc(x.kelas)}</td><td>${esc(x.jenis)}${x.ket?' '+esc(x.ket):''}</td><td>${bd(x.email)}</td><td>${bd(x.wa)} ${waAksi(x)}</td></tr>`).join('')||'<tr><td colspan="5" class="mu">Belum ada data notifikasi pada tanggal ini.</td></tr>'}</table></div>`);
+  $('#nJ').value=NF.jenis;
+  $('#nMuat').onclick=()=>{NF.tgl=$('#nT').value;NF.jenis=$('#nJ').value;pNotif()};
+  $('#nSiap').onclick=run(async()=>{const r=await api('notif_siapkan');toast(r.baru+' siswa ditambahkan ke daftar tidak hadir');pNotif()});
+  $('#nEm').onclick=run(async()=>{if(!confirm('Kirim email ke semua orang tua yang berstatus Menunggu (sesuai kuota harian email)?'))return;
+    const r=await api('notif_email',{jenis:NF.jenis});toast(`Email terkirim ${r.kirim}, gagal ${r.gagal}, tertunda ${r.tertunda}`);pNotif()});
+  $('#tN').onclick=run(async e=>{if(e.target.dataset.t){await api('notif_tandai',{id:e.target.dataset.t,status:e.target.dataset.s});pNotif()}});
 }
 
 /* Perangkat sidik jari eksternal */
