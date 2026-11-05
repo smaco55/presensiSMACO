@@ -1,0 +1,73 @@
+/* TEMA ELEGAN FORMAL - warna sekolah diatur dari config.js (lewat tema.js) */
+:root{--bg:#f6f4ee;--card:#ffffff;--tx:#1c2430;--mu:#6a7280;--bd:#e4e0d4;--sh:0 1px 2px rgba(20,28,40,.05),0 6px 18px rgba(20,28,40,.05);--serif:Georgia,"Times New Roman",serif}
+@media(prefers-color-scheme:dark){:root{--bg:#0e141c;--card:#161e29;--tx:#e8ecf1;--mu:#9aa4b2;--bd:#263243;--sh:0 1px 2px rgba(0,0,0,.35)}}
+body{background:var(--bg);color:var(--tx);font-family:"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+h1,h2,.serif{font-family:var(--serif);letter-spacing:.2px}
+/* kepala halaman dengan identitas sekolah */
+.hd{display:flex;justify-content:space-between;align-items:center;gap:10px 16px;flex-wrap:wrap;padding:12px 0;border-bottom:2px solid var(--ak);margin-bottom:6px}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.brand .nm{font-family:var(--serif);font-size:20px;font-weight:700;line-height:1.15;color:var(--pr)}
+.brand .sl{font-size:11px;letter-spacing:1.3px;text-transform:uppercase;color:var(--mu);margin-top:2px}
+.logo{object-fit:contain;display:block;flex:none}
+.mono{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:var(--pr);color:var(--on-pr);font-family:var(--serif);font-weight:700;border:2px solid var(--ak);flex:none}
+.btns .mu{margin-right:4px}
+/* tab */
+nav{gap:2px;border-bottom:1px solid var(--bd);padding:4px 0 0;margin-bottom:10px}
+nav button,nav button.on{background:none;border:0;border-bottom:3px solid transparent;border-radius:8px 8px 0 0;padding:10px 14px;color:var(--mu);font-weight:600;font-size:14px}
+nav button:hover{color:var(--tx)}
+nav button.on{color:var(--pr);border-bottom-color:var(--pr)}
+/* kartu, tombol, isian */
+.card{border:1px solid var(--bd);border-radius:12px;box-shadow:var(--sh)}
+.card>b:first-child{font-family:var(--serif);font-size:17px;color:var(--pr)}
+.b{background:var(--pr);color:var(--on-pr);border-radius:8px;letter-spacing:.3px;transition:background .15s}
+.b:hover{background:var(--pr-d)}
+.s{background:var(--card);border-radius:8px;transition:border-color .15s,color .15s}
+.s:hover{border-color:var(--pr);color:var(--pr)}
+label{font-size:12px;font-weight:600;color:var(--mu);letter-spacing:.3px}
+input,select,textarea{border-radius:8px}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--pr);box-shadow:0 0 0 3px var(--pr-s)}
+dialog{border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.25)}
+/* tabel */
+th{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--mu);font-weight:700;border-bottom:2px solid var(--bd)}
+tbody tr:hover td{background:var(--pr-s)}
+/* angka ringkasan dan grafik */
+.stat div{background:var(--card);border:1px solid var(--bd);border-top:3px solid var(--ak);box-shadow:var(--sh)}
+.stat b{font-family:var(--serif);color:var(--pr)}
+.bar div{background:var(--pr-s)}
+.bar i{background:linear-gradient(90deg,var(--pr),var(--pr-d))}
+.pill{letter-spacing:.3px}
+/* layar login */
+#login{max-width:780px;margin:7vh auto;padding:0;background:none;border:0;box-shadow:none}
+.lg{display:grid;grid-template-columns:1fr 1fr;background:var(--card);border:1px solid var(--bd);border-radius:16px;overflow:hidden;box-shadow:0 14px 44px rgba(20,28,40,.16);width:100%}
+.lg-brand{background:linear-gradient(160deg,var(--pr-d),var(--pr));color:var(--on-pr);padding:36px 26px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:10px}
+.lg-brand h1{color:inherit;font-size:24px;line-height:1.2;margin:6px 0 0}
+.lg-brand p{margin:0;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;opacity:.85}
+.lg-brand .ln{width:56px;height:3px;background:var(--ak);border-radius:2px}
+.lg-brand .logo{background:#fff;border-radius:50%;padding:6px}
+.lg-form{padding:34px 28px}
+@media(max-width:640px){#login{margin:3vh auto}.lg{grid-template-columns:1fr}.lg-brand{padding:22px 16px}.lg-form{padding:20px 18px}}
+/* halaman presensi */
+#jam{font-family:var(--serif);font-size:30px;color:var(--pr);letter-spacing:1px;line-height:1.1}
+#hasil{border-radius:16px;box-shadow:var(--sh);padding:18px;gap:18px;animation:pop .22s ease-out}
+@keyframes pop{from{transform:scale(.97);opacity:.4}to{transform:none;opacity:1}}
+#hasil img{width:104px;height:138px;border-radius:14px;border:3px solid currentColor;box-shadow:0 4px 12px rgba(0,0,0,.15)}
+#hasil b{font-family:var(--serif)}
+#hasil.ok::after,#hasil.wn::after,#hasil.err::after{margin-left:auto;width:54px;height:54px;border:3px solid currentColor;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:700;flex:none}
+#hasil.ok::after{content:"\2713"}#hasil.wn::after{content:"!"}#hasil.err::after{content:"\2715"}
+#scan{border-radius:12px;font-family:var(--serif)}
+/* layar siaga */
+#idle{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;color:var(--on-pr);background:linear-gradient(160deg,var(--pr-d),var(--pr));z-index:4;padding:20px}
+#idle .logo{background:#fff;border-radius:50%;padding:8px}
+#idle .nm{font-family:var(--serif);font-size:min(6vw,34px);font-weight:700}
+#idle .ln{width:80px;height:3px;background:var(--ak);border-radius:2px}
+#idle .big{font-family:var(--serif);font-size:min(18vw,120px);line-height:1;letter-spacing:2px}
+#idle .hint{margin-top:10px;font-size:18px;opacity:.9;letter-spacing:.5px}
+
+/* daftar belum presensi */
+.rowb{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.brow{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:10px 0;border-bottom:1px solid var(--bd)}
+.brow b{font-family:var(--serif);font-size:16px}
+.bact{display:flex;gap:6px;flex-wrap:wrap}.bact a.s{text-decoration:none;display:inline-block}
+dialog{border:1px solid var(--bd);background:var(--card);color:var(--tx);max-width:420px;width:92%}
+dialog::backdrop{background:rgba(10,16,24,.5)}
+@media(max-width:640px){.hd>div[style*="text-align:right"]{text-align:left!important}}

@@ -31,7 +31,7 @@ const ctx={console,JSON,Math,Date:MD,Object,Array,String,Number,isFinite,parseIn
  Logger:{log:x=>console.log('LOG:',x)}};
 const store={};const cache={get:k=>store[k]??null,put:(k,v)=>store[k]=v,remove:k=>delete store[k]};
 vm.createContext(ctx);
-vm.runInContext(['Code.gs','Presensi.gs','Biometrik.gs','Perangkat.gs','Laporan.gs','Operasional.gs','Notifikasi.gs'].map(f=>fs.readFileSync(D+f,'utf8')).join('\n')+'\nthis.__doPost=doPost;this.__setup=setupAwal;this.__uji=ujiBeban;',ctx);
+vm.runInContext(['Code.gs','Presensi.gs','Biometrik.gs','Perangkat.gs','Laporan.gs','Operasional.gs','Notifikasi.gs','Tambahan.gs'].map(f=>fs.readFileSync(D+f,'utf8')).join('\n')+'\nthis.__doPost=doPost;this.__setup=setupAwal;this.__uji=ujiBeban;this.ringkasanTeks=ringkasanTeks;',ctx);
 const post=(o,params={})=>JSON.parse(ctx.__doPost({postData:{contents:JSON.stringify(o)},parameter:params}).t);
 let ok=0,bad=0;const T=(n,c,x)=>{c?ok++:bad++;console.log((c?'PASS ':'FAIL ')+n+(c?'':'  -> '+JSON.stringify(x)))};
 (async()=>{
@@ -146,6 +146,80 @@ r=post({a:'ganti_password',t:A,lama:'GantiSaya123',baru:'passwordbaru1'});T('gan
 r=post({a:'login',u:'admin',p:'passwordbaru1'});T('login password baru, flag awal mati',r.ok&&!r.awal,r);
 for(let i=0;i<5;i++)post({a:'login',u:'gate1',p:'salah'});
 r=post({a:'login',u:'gate1',p:'rahasia123'});T('akun terkunci setelah 5 gagal',!r.ok&&/Terlalu banyak/.test(r.err),r);
+
+// ---- fitur tambahan: jadwal, wali kelas, koreksi, manual, izin multi-hari, ringkasan ----
+NOW=Date.parse('2026-11-02T09:30:00+07:00');
+r=post({a:'jadwal_save',t:A,v:{Jenis:'Hari',Kunci:'1',Mulai:'06:00',Batas:'07:30',Selesai:'09:00',Pulang:'12:00',Keterangan:'Upacara'}});T('jadwal hari Senin disimpan (batas 07:30)',r.ok,r);
+r=post({a:'jadwal_save',t:A,v:{Jenis:'Hari',Kunci:'1',Mulai:'09:00',Batas:'08:00',Selesai:'10:00',Pulang:'12:00'}});T('jadwal dengan urutan jam salah ditolak',!r.ok,r);
+r=post({a:'jadwal_save',t:G,v:{Jenis:'Hari',Kunci:'2',Mulai:'06:00',Batas:'07:00',Selesai:'08:00',Pulang:'12:00'}});T('petugas tak boleh ubah jadwal',!r.ok,r);
+post({a:'siswa_import',t:A,rows:[['2001','','Jaya','7A','','',''],['2002','','Kiki','7A','','',''],['2003','','Lina','7B','','','']]});
+NOW=Date.parse('2026-11-02T07:20:00+07:00'); // Senin 07:20: batas hari ini 07:30 -> TEPAT WAKTU (batas umum 07:00)
+r=post({a:'hadir',t:G,items:[{kode:'2001',metode:'nis'}]});T('jadwal Senin: 07:20 masih Tepat waktu',r.res[0].status==='Tepat waktu',r);
+r=post({a:'presensi_data',t:G});T('presensi_data memakai jadwal hari itu (batas 07:30)',r.st.jam_batas_terlambat==='07:30'&&r.st.jam_selesai==='09:00',r.st);
+NOW=Date.parse('2026-11-02T08:55:00+07:00');
+r=post({a:'hadir',t:G,items:[{kode:'2002',metode:'nis'}]});T('jadwal Senin: berakhir 09:00, 08:55 masih diterima (Terlambat)',r.res[0].ok&&r.res[0].status==='Terlambat',r);
+post({a:'jadwal_save',t:A,v:{Jenis:'Tanggal',Kunci:'2026-11-02',Mulai:'06:00',Batas:'06:30',Selesai:'07:00',Pulang:'11:00',Keterangan:'Ujian'}});
+r=post({a:'hadir',t:G,items:[{kode:'2003',metode:'nis'}]});T('jadwal tanggal khusus menimpa jadwal hari: 08:55 ditutup (berakhir 07:00)',r.res[0].err&&/ditutup/.test(r.res[0].err),r);
+r=post({a:'jadwal_hapus',t:A,jenis:'Tanggal',kunci:'2026-11-02'});T('hapus jadwal khusus',r.ok,r);
+r=post({a:'jadwal_hapus',t:A,jenis:'Hari',kunci:'1'});
+// wali kelas
+r=post({a:'petugas_save',t:A,v:{Username:'wali7a',Nama:'Bu Sari',Peran:'Wali',Kelas:'ZZ',Password:'walikelas1',Status:'Aktif'}});T('wali dengan kelas tak ada ditolak',!r.ok,r);
+r=post({a:'petugas_save',t:A,v:{Username:'wali7a',Nama:'Bu Sari',Peran:'Wali',Kelas:'7A',Password:'walikelas1',Status:'Aktif'}});T('buat akun wali kelas 7A',r.ok,r);
+r=post({a:'login',u:'wali7a',p:'walikelas1'});const W=r.t;T('login wali, kelas terbawa',r.ok&&r.u.peran==='Wali'&&r.u.kelas==='7A',r.u);
+NOW=Date.parse('2026-11-02T10:00:00+07:00');
+r=post({a:'dashboard',t:W});T('dashboard wali hanya kelas 7A',r.ok&&r.v.kelas.length===1&&r.v.kelas[0].nama==='7A',r.v&&r.v.kelas);
+r=post({a:'laporan',t:W,dari:'2026-11-02',sampai:'2026-11-02',kelas:'7B'});T('wali minta kelas 7B -> tetap dipaksa 7A',r.ok&&r.v.length>0&&r.v.every(x=>x.Kelas==='7A'),r.v&&r.v.map(x=>x.Kelas));
+r=post({a:'rekap',t:W,bulan:'2026-11',kelas:'7B'});T('rekap wali hanya 7A',r.ok&&r.v.every(x=>x.kelas==='7A'),r.v&&r.v.map(x=>x.kelas));
+r=post({a:'siswa_kelas',t:W,kelas:'7B'});T('siswa_kelas wali: hanya 7A',r.ok&&r.kelas==='7A'&&r.v.length>=3,r);
+r=post({a:'siswa_kelas',t:G});T('petugas biasa ditolak siswa_kelas',!r.ok,r);
+r=post({a:'izin_simpan',t:W,nis:'2003',jenis:'Sakit',tgl:'2026-11-03'});T('wali tak boleh catat izin siswa kelas lain',!r.ok&&/bukan di kelas/.test(r.err),r);
+// izin multi hari: Rabu 4 s/d Senin 9 Nov -> hari aktif Rabu,Kamis,Jumat,Senin = 4 (Sabtu/Minggu dilewati)
+r=post({a:'izin_simpan',t:W,nis:'2001',jenis:'Sakit',tgl:'2026-11-04',sampai:'2026-11-09',ket:'Demam'});T('izin 4-9 Nov: 4 hari aktif tercatat, 2 dilewati',r.ok&&r.n===4&&r.lewat===2,r);
+r=post({a:'izin_simpan',t:W,nis:'2001',jenis:'Izin',tgl:'2026-11-04',sampai:'2026-11-09'});T('izin ganda untuk rentang sama ditolak',!r.ok,r);
+r=post({a:'notif_siapkan',t:W});T('wali tak boleh kelola notifikasi',!r.ok,r);
+r=post({a:'petugas_list',t:W});T('wali tak boleh lihat daftar petugas',!r.ok,r);
+r=post({a:'presensi_koreksi',t:W,id:'x',alasan:'tes'});T('wali tak boleh membatalkan presensi',!r.ok,r);
+// koreksi
+r=post({a:'laporan',t:A,dari:'2026-11-02',sampai:'2026-11-02',nama:'Jaya'});const idJ=r.v[0].ID;T('laporan memuat ID presensi',!!idJ&&r.v.length===1,r.v);
+r=post({a:'presensi_koreksi',t:A,id:idJ,alasan:''});T('koreksi tanpa alasan ditolak',!r.ok,r);
+r=post({a:'presensi_koreksi',t:A,id:idJ,alasan:'Salah scan kartu teman'});T('presensi dibatalkan',r.ok,r);
+r=post({a:'laporan',t:A,dari:'2026-11-02',sampai:'2026-11-02',nama:'Jaya'});T('laporan default tidak memuat yang dibatalkan',r.v.length===0,r.v);
+r=post({a:'laporan',t:A,dari:'2026-11-02',sampai:'2026-11-02',nama:'Jaya',status:'Dibatalkan'});T('laporan status Dibatalkan menampilkan jejak + alasan',r.v.length===1,r.v);
+r=post({a:'presensi_koreksi',t:A,id:idJ,alasan:'ulang'});T('batal dua kali ditolak',!r.ok,r);
+r=post({a:'presensi_data',t:G});T('yang dibatalkan hilang dari sinkron (bisa scan ulang)',!('2001|Masuk' in r.sudah),Object.keys(r.sudah));
+NOW=Date.parse('2026-11-02T06:40:00+07:00');
+r=post({a:'hadir',t:G,items:[{kode:'2001',metode:'nis'}]});T('setelah dibatalkan, siswa bisa scan ulang',r.res[0].ok,r);
+// manual
+NOW=Date.parse('2026-11-02T10:00:00+07:00');
+r=post({a:'presensi_manual',t:A,nis:'2002',tgl:'2026-11-02',jam:'07:10',jenis:'Pulang',alasan:'Scanner rusak'});T('presensi manual pulang',r.ok&&r.status==='Pulang',r);
+r=post({a:'presensi_manual',t:A,nis:'2002',tgl:'2026-11-02',jam:'07:10',jenis:'Pulang',alasan:'dobel'});T('manual ganda ditolak',!r.ok,r);
+r=post({a:'presensi_manual',t:A,nis:'2003',tgl:'2026-11-09',jam:'07:00',jenis:'Masuk',alasan:'masa depan'});T('manual tanggal masa depan ditolak',!r.ok,r);
+r=post({a:'presensi_manual',t:A,nis:'2003',tgl:'2026-11-02',jam:'07:00',jenis:'Masuk',alasan:''});T('manual tanpa alasan ditolak',!r.ok,r);
+r=post({a:'presensi_manual',t:A,nis:'2003',tgl:'2026-11-02',jam:'07:00',jenis:'Masuk',alasan:'Lupa scan, dicek wali kelas'});T('manual masuk lupa scan (batas 07:00 -> Tepat waktu)',r.ok&&r.status==='Tepat waktu',r);
+r=post({a:'laporan',t:A,dari:'2026-11-02',sampai:'2026-11-02',nama:'Lina'});T('manual tercatat metode Manual',r.v[0].Metode==='Manual',r.v);
+// ringkasan harian
+NOW=Date.parse('2026-11-02T09:00:00+07:00');
+const tx=ctx.ringkasanTeks();T('ringkasan harian berisi total & per kelas',/Siswa aktif:/.test(tx)&&/7A:/.test(tx)&&/Presensi berakhir pukul/.test(tx),tx);
+NOW=Date.parse('2026-11-01T09:00:00+07:00');T('ringkasan kosong di hari tidak aktif',ctx.ringkasanTeks()==='');
+NOW=Date.parse('2026-11-02T09:00:00+07:00');
+
+
+// ---- petugas: daftar belum presensi + catat izin/sakit ----
+NOW=Date.parse('2026-11-02T10:00:00+07:00');
+r=post({a:'belum_hadir',t:G});
+T('petugas melihat daftar belum presensi (termasuk kontak ortu)',r.ok&&r.v.some(x=>x.nis==='1008'&&x.wa==='628144444')&&!r.v.some(x=>x.nis==='1006'||x.nis==='1001'),r.v&&r.v.map(x=>x.nis));
+T('ringkasan: hadir/izin/total konsisten',r.hadir+r.izin+r.v.length===r.total,[r.hadir,r.izin,r.v.length,r.total]);
+const totSemua=post({a:'belum_hadir',t:G}).total;
+r=post({a:'belum_hadir',t:W});T('wali hanya mencakup kelasnya (7A): total lebih kecil dari seluruh sekolah, daftar hanya 7A',r.ok&&r.total>0&&r.total<totSemua&&r.v.every(x=>x.kelas==='7A'),[r.total,totSemua]);
+r=post({a:'belum_hadir'});T('tanpa login ditolak',r.err==='SESI',r);
+r=post({a:'izin_simpan',t:G,nis:'1008',jenis:'Sakit',tgl:'2026-11-02',ket:'Orang tua menelepon'});T('PETUGAS boleh mencatat sakit',r.ok&&r.n===1,r);
+r=post({a:'belum_hadir',t:G});T('setelah dicatat sakit, hilang dari daftar belum presensi',!r.v.some(x=>x.nis==='1008'),r.v.map(x=>x.nis));
+r=post({a:'izin_simpan',t:G,nis:'1007',jenis:'Izin',tgl:'2026-11-02',sampai:'2026-11-20'});T('petugas dibatasi maksimal 7 hari',!r.ok&&/7 hari/.test(r.err),r);
+r=post({a:'izin_simpan',t:G,nis:'1007',jenis:'Izin',tgl:'2026-10-01'});T('petugas tak boleh mencatat izin terlalu lampau',!r.ok&&/7 hari/.test(r.err),r);
+r=post({a:'izin_simpan',t:A,nis:'1007',jenis:'Izin',tgl:'2026-10-26',sampai:'2026-10-28'});T('admin tetap tanpa batas 7 hari ke belakang',r.ok,r);
+r=post({a:'laporan',t:G,dari:'2026-11-02'});T('petugas tetap tidak boleh buka laporan',!r.ok,r);
+r=post({a:'presensi_koreksi',t:G,id:'x',alasan:'tes'});T('petugas tak boleh membatalkan presensi/izin',!r.ok,r);
+
 // uji beban
 NOW=Date.parse('2026-11-03T06:40:00+07:00');
 const n0=sheets.PRESENSI.d.length;ctx.__uji();T('ujiBeban menghapus baris uji',sheets.PRESENSI.d.length===n0,[n0,sheets.PRESENSI.d.length]);

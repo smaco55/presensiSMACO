@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0f766e">
+<meta name="theme-color" content="#1e3a5f">
 <title>Admin Presensi Sekolah</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -31,15 +31,26 @@ table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;p
 dialog{border:1px solid var(--bd);border-radius:14px;background:var(--card);color:var(--tx);max-width:520px;width:92%}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--tx);color:var(--bg);padding:10px 16px;border-radius:10px;display:none;max-width:90%;z-index:9}
 #login{max-width:380px;margin:12vh auto}
+.btns{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chk{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 0}.chk.col{flex-direction:column;gap:6px}.chk label{white-space:nowrap;display:flex;align-items:center;font-size:14px;color:var(--tx)}.chk input{width:auto;margin:0 6px 0 0}
+@media(max-width:640px){
+ table.stk tr:first-child{display:none}
+ table.stk tr{display:block;padding:8px 0;border-bottom:1px solid var(--bd)}
+ table.stk td{display:block;border:0;padding:2px 0}
+ table.stk td[data-l]:not([data-l=""])::before{content:attr(data-l) ": ";color:var(--mu);font-size:12px}
+ .row>*{min-width:100%}
+}
 .bd{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600}.bd.ok{background:rgba(34,197,94,.18);color:var(--ok)}.bd.er{background:rgba(239,68,68,.18);color:var(--er)}.bd.wn{background:rgba(234,179,8,.22);color:#ca8a04}.bd.na{background:var(--bg);color:var(--mu)}
 @media print{body *{visibility:hidden}.cetak,.cetak *{visibility:visible}.cetak{position:absolute;left:0;top:0;width:100%;border:0}.cetak button{display:none}}
 </style>
+<link rel="stylesheet" href="tema.css">
+<script src="config.js"></script>
+<script src="tema.js"></script>
 </head>
 <body>
 <div id="app"></div>
 <div id="toast"></div>
 <dialog id="dlg"></dialog>
-<script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 const $=s=>document.querySelector(s);
@@ -55,15 +66,16 @@ async function api(a,d={}){
   if(!j.ok)throw new Error(j.err||'Gagal');return j;
 }
 const run=f=>async(...a)=>{try{await f(...a)}catch(e){toast(e.message,1)}};
-const V=h=>$('#view').innerHTML=h;
-const field=(id,l,v='',t='text',x='')=>`<label>${l}</label><input id="${id}" type="${t}" value="${esc(v)}" ${x}>`;
+const stackify=()=>document.querySelectorAll('table.stk').forEach(t=>{if(!t.rows.length)return;const h=[...t.rows[0].cells].map(c=>c.textContent);[...t.rows].slice(1).forEach(r=>[...r.cells].forEach((c,i)=>c.dataset.l=h[i]||''))});
+const V=h=>{$('#view').innerHTML=h;stackify()};
+const field=(id,l,v='',t='text',x='')=>`<div><label>${l}</label><input id="${id}" type="${t}" value="${esc(v)}" ${x}></div>`;
 const opts=(a,sel)=>a.map(o=>`<option ${o===sel?'selected':''}>${esc(o)}</option>`).join('');
 
 /* Login */
 function drawLogin(){
-  $('#app').innerHTML=`<div id="login" class="card"><h1>Presensi Sekolah</h1><div class="mu">Masuk untuk melanjutkan</div><br>
+  $('#app').innerHTML=`<div id="login"><div class="lg"><div class="lg-brand">${brandLogo(84)}<h1>${esc(TEMA.nama)}</h1><div class="ln"></div><p>${esc(TEMA.slogan)}</p></div><div class="lg-form"><h2 style="margin:0 0 4px;font-size:21px">Masuk</h2><div class="mu">Gunakan akun yang diberikan oleh sekolah</div><br>
   ${window.PRESENSI_API?'':field('lApi','URL API (Apps Script)',API)}${field('lUser','Username')}${field('lPass','Password','','password')}
-  <button class="b" style="width:100%" id="lGo">Masuk</button><br><br><a class="mu" href="index.html">Ke halaman presensi</a></div>`;
+  <button class="b" style="width:100%" id="lGo">Masuk</button><br><br><a class="mu" href="index.html">Ke halaman presensi</a></div></div></div>`;
   $('#lPass').onkeydown=e=>{if(e.key==='Enter')$('#lGo').click()};
   $('#lGo').onclick=run(async()=>{
     if(!window.PRESENSI_API){API=$('#lApi').value.trim();localStorage.setItem('api',API)}
@@ -78,10 +90,10 @@ async function keluar(silent){
 }
 
 /* Kerangka */
-const PG={dash:['Dashboard',pDash],siswa:['Siswa',pSiswa],guru:['Guru',pGuru],kelas:['Kelas',pKelas],petugas:['Petugas',pPetugas],set:['Pengaturan',pSet],lap:['Laporan',pLap],notif:['Notifikasi',pNotif],dev:['Perangkat',pDev],log:['Log',pLog]};
+const PG={dash:['Dashboard',pDash],siswa:['Siswa',pSiswa],guru:['Guru',pGuru],kelas:['Kelas',pKelas],petugas:['Petugas',pPetugas],set:['Pengaturan',pSet],izin:['Izin/Sakit',pIzin],lap:['Laporan',pLap],notif:['Notifikasi',pNotif],dev:['Perangkat',pDev],log:['Log',pLog]};
 function drawApp(){
-  const ks=me.peran==='Admin'?Object.keys(PG):['dash'];
-  $('#app').innerHTML=`<div class="top"><h1>Presensi Sekolah</h1><span class="mu">${esc(me.nama)} (${esc(me.peran)}) <a class="s" href="index.html" style="text-decoration:none">Halaman Presensi</a> <button class="s" id="pw">Ganti password</button> <button class="s" id="out">Keluar</button></span></div>
+  const ks=me.peran==='Admin'?Object.keys(PG):me.peran==='Wali'?['dash','izin','lap']:['dash'];
+  $('#app').innerHTML=`<header class="hd"><div class="brand">${brandLogo(46)}<div><div class="nm">${esc(TEMA.nama)}</div><div class="sl">${esc(TEMA.slogan)}</div></div></div><div class="btns"><span class="mu">${esc(me.nama)} · ${esc(me.peran)}${me.kelas?' '+esc(me.kelas):''}</span><a class="s" href="index.html" style="text-decoration:none">Halaman Presensi</a> <button class="s" id="pw">Ganti password</button> <button class="s" id="out">Keluar</button></div></header>
   <nav>${ks.map(k=>`<button data-p="${k}">${PG[k][0]}</button>`).join('')}</nav><div id="view"></div>`;
   $('#out').onclick=()=>keluar();
   $('#pw').onclick=run(async()=>{const l=prompt('Password lama');if(!l)return;const b=prompt('Password baru (minimal 8 karakter)');if(!b)return;await api('ganti_password',{lama:l,baru:b});toast('Password diganti')});
@@ -105,7 +117,7 @@ async function pSiswa(){
   const [a,b,c]=await Promise.all([api('siswa_list'),api('kelas_list'),api('bio_status')]);SW=a.v;KL=b.v;BS={};c.v.forEach(x=>BS[x.nis]=x.tgl);
   V(`<div class="card"><div class="row"><input id="q" placeholder="Cari NIS / nama"><select id="fk"><option value="">Semua kelas</option>${KL.map(k=>`<option value="${esc(k.ID_Kelas)}">${esc(k.Nama_Kelas)}</option>`).join('')}</select></div>
   <button class="b" id="add">+ Tambah siswa</button> <button class="s" id="imp">Impor Excel/CSV</button> <button class="s" id="foto">Impor foto</button>
-  <span class="mu" id="cnt"></span></div><div class="card wrap"><table id="tb"></table></div>`);
+  <span class="mu" id="cnt"></span></div><div class="card wrap"><table class="stk" id="tb"></table></div>`);
   $('#q').oninput=$('#fk').onchange=tabelSiswa;tabelSiswa();
   $('#add').onclick=()=>formSiswa();$('#imp').onclick=dlgImport;$('#foto').onclick=dlgFoto;
   $('#tb').onclick=e=>{if(e.target.dataset.e)formSiswa(SW.find(s=>s.NIS===e.target.dataset.e));if(e.target.dataset.w)dlgWajah(e.target.dataset.w)};
@@ -142,6 +154,7 @@ function tabelSiswa(){
   const q=$('#q').value.toLowerCase(),k=$('#fk').value,L=SW.filter(s=>(!q||(s.NIS+s.Nama).toLowerCase().includes(q))&&(!k||s.ID_Kelas===k));
   $('#cnt').textContent=` ${L.length} dari ${SW.length}`;
   $('#tb').innerHTML='<tr><th>NIS</th><th>Nama</th><th>Kelas</th><th>Status</th><th></th></tr>'+L.slice(0,120).map(s=>`<tr><td>${esc(s.NIS)}</td><td>${esc(s.Nama)}</td><td>${esc(s.ID_Kelas)}</td><td>${esc(s.Status)}</td><td><button class="s" data-e="${esc(s.NIS)}">Edit</button> <button class="s" data-w="${esc(s.NIS)}">${BS[s.NIS]?'Wajah ✓':'Wajah'}</button></td></tr>`).join('');
+  stackify();
 }
 function dlgOpen(h){const d=$('#dlg');d.innerHTML=h+'<br><button class="s" id="tutup">Tutup</button>';$('#tutup').onclick=()=>d.close();d.onclose=()=>{if(window.camS){camS.getTracks().forEach(t=>t.stop());camS=null}};d.showModal()}
 function formSiswa(s){
@@ -194,7 +207,7 @@ async function pGuru(){
   V(`<div class="card"><b>Tambah / ubah guru</b><div class="row">${field('gN','NIP')}${field('gA','Nama')}${field('gK','Kode barcode (kosong = NIP)')}${field('gW','WA')}</div>
   <label>Status</label><select id="gS">${opts(['Aktif','Nonaktif'])}</select><button class="b" id="gOk">Simpan</button></div>
   <div class="card"><b>Impor guru</b><div class="mu">Tempel dari Excel, kolom: NIP, Nama, Kode barcode, WA (satu baris per guru).</div><textarea id="gI" rows="4"></textarea><button class="b" id="gImp">Impor</button><div class="mu" id="gH"></div></div>
-  <div class="card wrap"><b>Daftar guru</b> <span class="mu">${L.length} orang</span><table id="tg"><tr><th>NIP</th><th>Nama</th><th>Kode</th><th>Status</th><th></th></tr>${L.map((g,i)=>`<tr><td>${esc(g.NIP)}</td><td>${esc(g.Nama)}</td><td>${esc(g.Kode_Barcode)}</td><td>${esc(g.Status)}</td><td><button class="s" data-i="${i}">Edit</button></td></tr>`).join('')}</table></div>`);
+  <div class="card wrap"><b>Daftar guru</b> <span class="mu">${L.length} orang</span><table class="stk" id="tg"><tr><th>NIP</th><th>Nama</th><th>Kode</th><th>Status</th><th></th></tr>${L.map((g,i)=>`<tr><td>${esc(g.NIP)}</td><td>${esc(g.Nama)}</td><td>${esc(g.Kode_Barcode)}</td><td>${esc(g.Status)}</td><td><button class="s" data-i="${i}">Edit</button></td></tr>`).join('')}</table></div>`);
   let baru=true;
   $('#tg').onclick=e=>{if(e.target.dataset.i){const g=L[e.target.dataset.i];$('#gN').value=g.NIP;$('#gN').readOnly=true;$('#gA').value=g.Nama;$('#gK').value=g.Kode_Barcode;$('#gW').value=g.WA;$('#gS').value=g.Status;baru=false;scrollTo(0,0)}};
   $('#gOk').onclick=run(async()=>{await api('guru_save',{baru,v:{NIP:$('#gN').value,Nama:$('#gA').value,Kode_Barcode:$('#gK').value,WA:$('#gW').value,Status:$('#gS').value}});toast('Tersimpan');pGuru()});
@@ -210,35 +223,73 @@ async function pKelas(){
   KL=(await api('kelas_list')).v;
   V(`<div class="card"><b>Tambah / ubah kelas</b><div class="row">${field('kId','ID kelas (mis. 7A)')}${field('kTg','Tingkat')}${field('kWl','Wali kelas')}${field('kTa','Tahun ajaran','2026/2027')}</div>
   <label>Status</label><select id="kSt">${opts(['Aktif','Nonaktif'])}</select><button class="b" id="kOk">Simpan</button></div>
-  <div class="card wrap"><table id="tk"><tr><th>ID</th><th>Tingkat</th><th>Wali</th><th>TA</th><th>Status</th><th></th></tr>${KL.map((k,i)=>`<tr><td>${esc(k.ID_Kelas)}</td><td>${esc(k.Tingkat)}</td><td>${esc(k.Wali_Kelas)}</td><td>${esc(k.Tahun_Ajaran)}</td><td>${esc(k.Status)}</td><td><button class="s" data-i="${i}">Edit</button></td></tr>`).join('')}</table></div>`);
+  <div class="card wrap"><table class="stk" id="tk"><tr><th>ID</th><th>Tingkat</th><th>Wali</th><th>TA</th><th>Status</th><th></th></tr>${KL.map((k,i)=>`<tr><td>${esc(k.ID_Kelas)}</td><td>${esc(k.Tingkat)}</td><td>${esc(k.Wali_Kelas)}</td><td>${esc(k.Tahun_Ajaran)}</td><td>${esc(k.Status)}</td><td><button class="s" data-i="${i}">Edit</button></td></tr>`).join('')}</table></div>`);
   $('#tk').onclick=e=>{if(e.target.dataset.i){const k=KL[e.target.dataset.i];$('#kId').value=k.ID_Kelas;$('#kTg').value=k.Tingkat;$('#kWl').value=k.Wali_Kelas;$('#kTa').value=k.Tahun_Ajaran;$('#kSt').value=k.Status;scrollTo(0,0)}};
   $('#kOk').onclick=run(async()=>{await api('kelas_save',{v:{ID_Kelas:$('#kId').value,Tingkat:$('#kTg').value,Wali_Kelas:$('#kWl').value,Tahun_Ajaran:$('#kTa').value,Status:$('#kSt').value}});toast('Tersimpan');pKelas()});
 }
 
 /* Petugas */
 async function pPetugas(){
-  const L=(await api('petugas_list')).v;
+  const [pl,kl]=await Promise.all([api('petugas_list'),api('kelas_list')]),L=pl.v;KL=kl.v;
   V(`<div class="card"><b>Tambah / ubah akun</b><div class="row">${field('uU','Username')}${field('uN','Nama')}${field('uP','Password (min 8; kosong = tidak diubah)','','password')}</div>
-  <div class="row"><div><label>Peran</label><select id="uR">${opts(['Petugas','Admin'])}</select></div><div><label>Status</label><select id="uS">${opts(['Aktif','Nonaktif'])}</select></div></div><button class="b" id="uOk">Simpan</button></div>
-  <div class="card wrap"><table id="tu"><tr><th>Username</th><th>Nama</th><th>Peran</th><th>Status</th><th>Login terakhir</th><th></th></tr>${L.map((p,i)=>`<tr><td>${esc(p.Username)}</td><td>${esc(p.Nama)}</td><td>${esc(p.Peran)}</td><td>${esc(p.Status)}</td><td>${esc(p.Login_Terakhir)}</td><td><button class="s" data-i="${i}">Edit</button></td></tr>`).join('')}</table></div>`);
-  $('#tu').onclick=e=>{if(e.target.dataset.i){const p=L[e.target.dataset.i];$('#uU').value=p.Username;$('#uN').value=p.Nama;$('#uR').value=p.Peran;$('#uS').value=p.Status;scrollTo(0,0)}};
-  $('#uOk').onclick=run(async()=>{await api('petugas_save',{v:{Username:$('#uU').value,Nama:$('#uN').value,Password:$('#uP').value,Peran:$('#uR').value,Status:$('#uS').value}});toast('Tersimpan');pPetugas()});
+  <div class="row"><div><label>Peran</label><select id="uR">${opts(['Petugas','Wali','Admin'])}</select></div><div><label>Kelas (khusus Wali)</label><select id="uK"><option value="">-</option>${KL.map(k=>`<option>${esc(k.ID_Kelas)}</option>`).join('')}</select></div><div><label>Status</label><select id="uS">${opts(['Aktif','Nonaktif'])}</select></div></div><button class="b" id="uOk">Simpan</button></div>
+  <div class="card wrap"><table class="stk" id="tu"><tr><th>Username</th><th>Nama</th><th>Peran / Kelas</th><th>Status</th><th>Login terakhir</th><th></th></tr>${L.map((p,i)=>`<tr><td>${esc(p.Username)}</td><td>${esc(p.Nama)}</td><td>${esc(p.Peran)}${p.Kelas?' '+esc(p.Kelas):''}</td><td>${esc(p.Status)}</td><td>${esc(p.Login_Terakhir)}</td><td><button class="s" data-i="${i}">Edit</button></td></tr>`).join('')}</table></div>`);
+  $('#tu').onclick=e=>{if(e.target.dataset.i){const p=L[e.target.dataset.i];$('#uU').value=p.Username;$('#uN').value=p.Nama;$('#uR').value=p.Peran;$('#uK').value=p.Kelas||'';$('#uS').value=p.Status;scrollTo(0,0)}};
+  $('#uOk').onclick=run(async()=>{await api('petugas_save',{v:{Username:$('#uU').value,Nama:$('#uN').value,Password:$('#uP').value,Peran:$('#uR').value,Kelas:$('#uK').value,Status:$('#uS').value}});toast('Tersimpan');pPetugas()});
 }
 
 /* Pengaturan */
 async function pSet(){
-  const s=(await api('pengaturan_get')).v,H=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'],M={barcode:'Barcode',qr:'QR Code',nis:'Ketik NIS',wajah:'Wajah',sidik:'Sidik jari (perangkat eksternal)'};
+  const [ps,jl]=await Promise.all([api('pengaturan_get'),api('jadwal_list')]),s=ps.v,JL=jl.v,H=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'],M={barcode:'Barcode',qr:'QR Code',nis:'Ketik NIS',wajah:'Wajah',sidik:'Sidik jari (perangkat eksternal)'};
   V(`<div class="card"><b>Jam presensi</b><div class="row">${field('sM','Jam mulai',s.jam_mulai,'time')}${field('sB','Batas terlambat',s.jam_batas_terlambat,'time')}${field('sE','Jam berakhir',s.jam_selesai,'time')}${field('sP','Mulai jam pulang',s.jam_mulai_pulang,'time')}</div>
-  <label>Hari aktif sekolah</label><div>${H.map((h,i)=>`<label><input type="checkbox" class="hr" value="${i+1}" ${s.hari_aktif.split(',').includes(String(i+1))?'checked':''} style="width:auto;margin:0 4px 0 8px">${h}</label>`).join('')}</div><br>
+  <label>Hari aktif sekolah</label><div class="chk">${H.map((h,i)=>`<label><input type="checkbox" class="hr" value="${i+1}" ${s.hari_aktif.split(',').includes(String(i+1))?'checked':''} style="width:auto;margin:0 4px 0 8px">${h}</label>`).join('')}</div><br>
   ${field('sL','Hari libur (yyyy-mm-dd, pisah koma)',s.hari_libur)}
-  ${field('sNm','Nama sekolah (dipakai di pesan ke orang tua)',s.nama_sekolah)}<div class="row">${field('sT','Tahun ajaran',s.tahun_ajaran)}<div><label>Semester</label><select id="sS">${opts(['Ganjil','Genap'],s.semester)}</select></div></div>
-  <label>Metode presensi yang diaktifkan</label><div>${Object.keys(M).map(k=>`<label><input type="checkbox" class="mt" value="${k}" ${s.metode_aktif.split(',').includes(k)?'checked':''} style="width:auto;margin:0 4px 0 8px">${M[k]}</label>`).join('<br>')}</div><br>
-  <label><input type="checkbox" id="sN" ${s.notif_ortu==='ya'?'checked':''} style="width:auto;margin:0 6px 0 0">Kirim notifikasi email ke orang tua</label><br><br><button class="b" id="sOk">Simpan pengaturan</button></div>`);
+  ${field('sNm','Nama sekolah (dipakai di pesan ke orang tua)',s.nama_sekolah)}${field('sEm','Email penerima ringkasan harian (pisah koma; email pemilik skrip otomatis menerima)',s.email_ringkasan)}<div class="row">${field('sT','Tahun ajaran',s.tahun_ajaran)}<div><label>Semester</label><select id="sS">${opts(['Ganjil','Genap'],s.semester)}</select></div></div>
+  <label>Metode presensi yang diaktifkan</label><div class="chk col">${Object.keys(M).map(k=>`<label><input type="checkbox" class="mt" value="${k}" ${s.metode_aktif.split(',').includes(k)?'checked':''} style="width:auto;margin:0 4px 0 8px">${M[k]}</label>`).join('')}</div><br>
+  <label><input type="checkbox" id="sN" ${s.notif_ortu==='ya'?'checked':''} style="width:auto;margin:0 6px 0 0">Kirim notifikasi email ke orang tua</label><br><br><button class="b" id="sOk">Simpan pengaturan</button></div>
+  <div class="card"><b>Jadwal khusus</b><div class="mu">Jam umum di atas berlaku setiap hari. Di sini Anda bisa memberi jam berbeda untuk hari tertentu (mis. Jumat) atau tanggal tertentu (mis. ujian, bulan puasa). Tanggal tertentu mengalahkan hari tertentu.</div><br>
+  <div class="row"><div><label>Berlaku untuk</label><select id="jJ"><option value="Hari">Hari tertentu</option><option value="Tanggal">Tanggal tertentu</option></select></div>
+  <div id="jKh"><label>Hari</label><select id="jH">${H.map((h,i)=>`<option value="${i+1}">${h}</option>`).join('')}</select></div>
+  <div id="jKt" style="display:none"><label>Tanggal</label><input id="jT" type="date"></div></div>
+  <div class="row">${field('jM','Mulai','06:00','time')}${field('jB','Batas terlambat','07:00','time')}${field('jS','Berakhir','08:00','time')}${field('jP','Mulai pulang','12:00','time')}</div>
+  ${field('jK','Keterangan (mis. Jumat, Ujian)')}<button class="b" id="jOk">Simpan jadwal khusus</button>
+  <table class="stk" id="tJ"><tr><th>Berlaku</th><th>Mulai</th><th>Batas</th><th>Berakhir</th><th>Pulang</th><th>Ket</th><th></th></tr>${JL.map(j=>`<tr><td>${j.Jenis==='Hari'?H[j.Kunci-1]:esc(j.Kunci)}</td><td>${esc(j.Mulai)}</td><td>${esc(j.Batas)}</td><td>${esc(j.Selesai)}</td><td>${esc(j.Pulang)}</td><td>${esc(j.Keterangan)}</td><td><button class="s" data-jj="${esc(j.Jenis)}" data-jk="${esc(j.Kunci)}">Hapus</button></td></tr>`).join('')||'<tr><td colspan="7" class="mu">Belum ada jadwal khusus.</td></tr>'}</table></div>`);
+  $('#jJ').onchange=()=>{const h=$('#jJ').value==='Hari';$('#jKh').style.display=h?'block':'none';$('#jKt').style.display=h?'none':'block'};
+  $('#jOk').onclick=run(async()=>{const h=$('#jJ').value==='Hari';await api('jadwal_save',{v:{Jenis:$('#jJ').value,Kunci:h?$('#jH').value:$('#jT').value,Mulai:$('#jM').value,Batas:$('#jB').value,Selesai:$('#jS').value,Pulang:$('#jP').value,Keterangan:$('#jK').value}});toast('Jadwal khusus tersimpan');pSet()});
+  $('#tJ').onclick=run(async e=>{if(e.target.dataset.jj){if(!confirm('Hapus jadwal khusus ini?'))return;await api('jadwal_hapus',{jenis:e.target.dataset.jj,kunci:e.target.dataset.jk});toast('Dihapus');pSet()}});
+  
   $('#sOk').onclick=run(async()=>{
     const ck=c=>[...document.querySelectorAll('.'+c+':checked')].map(x=>x.value).join(',');
-    await api('pengaturan_set',{v:{jam_mulai:$('#sM').value,jam_batas_terlambat:$('#sB').value,jam_selesai:$('#sE').value,jam_mulai_pulang:$('#sP').value,hari_aktif:ck('hr'),hari_libur:$('#sL').value.replace(/\s/g,''),tahun_ajaran:$('#sT').value,nama_sekolah:$('#sNm').value,semester:$('#sS').value,metode_aktif:ck('mt'),notif_ortu:$('#sN').checked?'ya':'tidak'}});
+    await api('pengaturan_set',{v:{jam_mulai:$('#sM').value,jam_batas_terlambat:$('#sB').value,jam_selesai:$('#sE').value,jam_mulai_pulang:$('#sP').value,hari_aktif:ck('hr'),hari_libur:$('#sL').value.replace(/\s/g,''),tahun_ajaran:$('#sT').value,nama_sekolah:$('#sNm').value,email_ringkasan:$('#sEm').value.replace(/\s/g,''),semester:$('#sS').value,metode_aktif:ck('mt'),notif_ortu:$('#sN').checked?'ya':'tidak'}});
     toast('Pengaturan tersimpan');
   });
+}
+
+/* Izin / Sakit */
+async function pIzin(){
+  const t=new Date().toLocaleDateString('sv-SE');KL=(await api('kelas_list')).v;
+  const wali=me.peran==='Wali',k0=wali?me.kelas:(KL[0]&&KL[0].ID_Kelas)||'';
+  V(`<div class="card"><b>Catat izin / sakit</b>
+  <div class="row"><div><label>Kelas</label><select id="iK" ${wali?'disabled':''}>${KL.map(k=>`<option ${k.ID_Kelas===k0?'selected':''}>${esc(k.ID_Kelas)}</option>`).join('')}</select></div><div><label>Siswa</label><select id="iS"></select></div></div>
+  <div class="row"><div><label>Jenis</label><select id="iJ"><option>Sakit</option><option>Izin</option></select></div>${field('iD','Dari tanggal',t,'date')}${field('iE','Sampai tanggal (kosong = 1 hari)','','date')}</div>
+  ${field('iT','Keterangan (mis. demam, acara keluarga)')}<button class="b" id="iOk">Simpan</button>
+  <div class="mu">Untuk beberapa hari, isi Sampai tanggal. Hari libur dan hari tidak aktif dilewati otomatis.</div></div>
+  <div class="card"><b>Izin/sakit 14 hari terakhir</b> <span class="mu" id="iN"></span><table class="stk" id="tI"></table></div>`);
+  const muatSiswa=async()=>{const r=await api('siswa_kelas',{kelas:$('#iK').value});$('#iS').innerHTML=r.v.map(s=>`<option value="${esc(s.nis)}">${esc(s.nama)} (${esc(s.nis)})</option>`).join('')||'<option value="">Tidak ada siswa</option>'};
+  const muatDaftar=async()=>{
+    const f={dari:new Date(Date.now()-13*864e5).toLocaleDateString('sv-SE'),sampai:t,kelas:$('#iK').value,tipe:'Siswa'};
+    const [a,b]=await Promise.all([api('laporan',{...f,jenis:'Izin'}),api('laporan',{...f,jenis:'Sakit'})]);
+    const L=a.v.concat(b.v).sort((x,y)=>y.Tanggal.localeCompare(x.Tanggal)||x.Nama.localeCompare(y.Nama));
+    $('#iN').textContent=L.length+' catatan';
+    $('#tI').innerHTML='<tr><th>Tanggal</th><th>Nama</th><th>Kelas</th><th>Jenis</th></tr>'+(L.map(x=>`<tr><td>${esc(x.Tanggal)}</td><td>${esc(x.Nama)}</td><td>${esc(x.Kelas)}</td><td>${esc(x.Jenis)}</td></tr>`).join('')||'<tr><td colspan="4" class="mu">Belum ada.</td></tr>');stackify();
+  };
+  $('#iK').onchange=run(async()=>{await muatSiswa();await muatDaftar()});
+  $('#iOk').onclick=run(async()=>{
+    if(!$('#iS').value)return toast('Pilih siswa dulu',1);
+    const r=await api('izin_simpan',{nis:$('#iS').value,jenis:$('#iJ').value,tgl:$('#iD').value,sampai:$('#iE').value||undefined,ket:$('#iT').value});
+    toast(r.n+' hari tercatat'+(r.lewat?', '+r.lewat+' dilewati':''));$('#iT').value='';muatDaftar();
+  });
+  await muatSiswa();await muatDaftar();
 }
 
 /* Laporan */
@@ -251,7 +302,7 @@ async function pLap(){
         op=(a,l)=>`<option value="">${l}</option>`+a.map(x=>`<option>${x}</option>`).join('');
   V(`<div class="card" id="cLap"><b>Laporan presensi</b>
   <div class="row">${field('fD','Dari',t,'date')}${field('fS','Sampai',t,'date')}<div><label>Kelas</label><select id="fK">${ko}</select></div>${field('fN','Nama / NIS')}</div>
-  <div class="row"><div><label>Status</label><select id="fSt">${op(['Tepat waktu','Terlambat','Izin','Sakit','Pulang','Belum presensi'],'Semua')}</select></div>
+  <div class="row"><div><label>Status</label><select id="fSt">${op(['Tepat waktu','Terlambat','Izin','Sakit','Pulang','Belum presensi','Dibatalkan'],'Semua')}</select></div>
   <div><label>Metode</label><select id="fM">${op(['barcode','qr','nis','wajah','sidik'],'Semua')}</select></div>
   <div><label>Tipe</label><select id="fT"><option value="Siswa">Siswa</option><option value="Guru">Guru</option><option value="">Semua</option></select></div></div>
   <button class="b" id="bGo">Tampilkan</button> <button class="s" id="bXl">Excel</button> <button class="s" id="bPr">Cetak / PDF</button>
@@ -260,12 +311,15 @@ async function pLap(){
   <div class="row">${field('rB','Bulan',t.slice(0,7),'month')}<div><label>Kelas (atau Guru)</label><select id="rK">${ko}<option value="Guru">Guru</option></select></div></div>
   <button class="b" id="rGo">Tampilkan</button> <button class="s" id="rXl">Excel</button> <button class="s" id="rPr">Cetak / PDF</button>
   <div class="mu" id="rJ"></div><div class="wrap"><table id="tR"></table></div></div>
-  <div class="card"><b>Catat izin / sakit</b><div class="row">${field('zN','NIS siswa')}<div><label>Jenis</label><select id="zJ"><option>Izin</option><option>Sakit</option></select></div>${field('zT','Tanggal',t,'date')}${field('zK','Keterangan')}</div><button class="b" id="zOk">Simpan</button></div>`);
+  ${me.peran==='Admin'?`<div class="card"><b>Tambah presensi manual</b><div class="mu">Untuk siswa atau guru yang lupa scan atau saat alat rusak. Alasan wajib diisi dan tercatat di log. Untuk sakit/izin, pakai menu Izin/Sakit.</div>
+  <div class="row">${field('mN','NIS / NIP')}${field('mT','Tanggal',t,'date')}${field('mJ','Jam','07:00','time')}<div><label>Jenis</label><select id="mK"><option>Masuk</option><option>Pulang</option></select></div></div>
+  ${field('mA','Alasan (mis. scanner rusak)')}<button class="b" id="mOk">Simpan</button></div>`:''}`);
+  if(me.peran==='Wali'){['fK','rK'].forEach(i=>{$('#'+i).value=me.kelas;$('#'+i).disabled=true})}
   $('#bGo').onclick=run(async()=>{
     const f={dari:$('#fD').value,sampai:$('#fS').value,kelas:$('#fK').value,nama:$('#fN').value,status:$('#fSt').value,metode:$('#fM').value,tipe:$('#fT').value};
     const r=await api('laporan',f);LR=r.v;
     $('#fInfo').textContent=`${r.total} baris • ${f.dari} s/d ${f.sampai}${f.kelas?' • kelas '+f.kelas:''}${f.status?' • '+f.status:''}${r.total>LR.length?' • Excel berisi maksimal 5000 baris':''}`;
-    $('#tL').innerHTML='<tr><th>Tanggal</th><th>Jam</th><th>NIS</th><th>Nama</th><th>Kelas</th><th>Jenis</th><th>Metode</th><th>Status</th></tr>'+LR.slice(0,500).map(x=>`<tr><td>${esc(x.Tanggal)}</td><td>${esc(x.Waktu.slice(0,5))}</td><td>${esc(x.NIS)}</td><td>${esc(x.Nama)}</td><td>${esc(x.Kelas)}</td><td>${esc(x.Jenis)}</td><td>${esc(x.Metode)}</td><td>${esc(x.Status)}</td></tr>`).join('')+(LR.length>500?'<tr><td colspan="8" class="mu">Tampil 500 baris pertama. Unduh Excel untuk semuanya.</td></tr>':'');
+    $('#tL').innerHTML='<tr><th>Tanggal</th><th>Jam</th><th>NIS</th><th>Nama</th><th>Kelas</th><th>Jenis</th><th>Metode</th><th>Status</th><th></th></tr>'+LR.slice(0,500).map(x=>`<tr><td>${esc(x.Tanggal)}</td><td>${esc(x.Waktu.slice(0,5))}</td><td>${esc(x.NIS)}</td><td>${esc(x.Nama)}</td><td>${esc(x.Kelas)}</td><td>${esc(x.Jenis)}</td><td>${esc(x.Metode)}</td><td>${esc(x.Status)}</td><td>${me.peran==='Admin'&&x.ID&&x.Status!=='Dibatalkan'&&x.Status!=='Belum presensi'?`<button class="s" data-b="${esc(x.ID)}">Batalkan</button>`:''}</td></tr>`).join('')+(LR.length>500?'<tr><td colspan="9" class="mu">Tampil 500 baris pertama. Unduh Excel untuk semuanya.</td></tr>':'');
   });
   $('#bXl').onclick=()=>xl(LR,'laporan-presensi-'+$('#fD').value);
   $('#bPr').onclick=()=>cetak('#cLap');
@@ -276,7 +330,8 @@ async function pLap(){
   });
   $('#rXl').onclick=()=>xl(RR,'rekap-'+$('#rB').value);
   $('#rPr').onclick=()=>cetak('#cRek');
-  $('#zOk').onclick=run(async()=>{await api('izin_simpan',{nis:$('#zN').value,jenis:$('#zJ').value,tgl:$('#zT').value,ket:$('#zK').value});toast('Tersimpan');$('#zN').value=''});
+  if($('#mOk'))$('#mOk').onclick=run(async()=>{const r=await api('presensi_manual',{nis:$('#mN').value,tgl:$('#mT').value,jam:$('#mJ').value,jenis:$('#mK').value,alasan:$('#mA').value});toast('Tercatat: '+r.status);$('#mN').value='';$('#mA').value=''});
+  $('#tL').onclick=run(async e=>{const id=e.target.dataset.b;if(!id)return;const a=prompt('Alasan membatalkan presensi ini (wajib diisi):');if(!a)return;await api('presensi_koreksi',{id,alasan:a});toast('Presensi dibatalkan');$('#bGo').click()});
 }
 
 /* Notifikasi orang tua */
@@ -293,7 +348,7 @@ async function pNotif(){
   <div class="row">${field('nT','Tanggal',NF.tgl,'date')}<div><label>Jenis</label><select id="nJ"><option value="">Semua</option><option>Terlambat</option><option>Tidak hadir</option></select></div></div>
   <button class="s" id="nMuat">Tampilkan</button> <button class="b" id="nSiap">Siapkan daftar tidak hadir (hari ini)</button> <button class="b" id="nEm">Kirim email yang menunggu (hari ini)</button>
   <div class="stat" style="margin-top:10px">${ring('Terlambat')}${ring('Tidak hadir')}</div></div>
-  <div class="card wrap"><table id="tN"><tr><th>Nama</th><th>Kelas</th><th>Jenis</th><th>Email</th><th>WhatsApp</th></tr>${L.map(x=>`<tr><td>${esc(x.nama)}</td><td>${esc(x.kelas)}</td><td>${esc(x.jenis)}${x.ket?' '+esc(x.ket):''}</td><td>${bd(x.email)}</td><td>${bd(x.wa)} ${waAksi(x)}</td></tr>`).join('')||'<tr><td colspan="5" class="mu">Belum ada data notifikasi pada tanggal ini.</td></tr>'}</table></div>`);
+  <div class="card wrap"><table class="stk" id="tN"><tr><th>Nama</th><th>Kelas</th><th>Jenis</th><th>Email</th><th>WhatsApp</th></tr>${L.map(x=>`<tr><td>${esc(x.nama)}</td><td>${esc(x.kelas)}</td><td>${esc(x.jenis)}${x.ket?' '+esc(x.ket):''}</td><td>${bd(x.email)}</td><td>${bd(x.wa)} ${waAksi(x)}</td></tr>`).join('')||'<tr><td colspan="5" class="mu">Belum ada data notifikasi pada tanggal ini.</td></tr>'}</table></div>`);
   $('#nJ').value=NF.jenis;
   $('#nMuat').onclick=()=>{NF.tgl=$('#nT').value;NF.jenis=$('#nJ').value;pNotif()};
   $('#nSiap').onclick=run(async()=>{const r=await api('notif_siapkan');toast(r.baru+' siswa ditambahkan ke daftar tidak hadir');pNotif()});
@@ -308,7 +363,7 @@ async function pDev(){
   V(`<div class="card"><b>Perangkat sidik jari eksternal</b>
   <div class="mu">Mesin menyimpan dan mencocokkan sidik jari sendiri. Di mesin, ID pengguna (PIN) harus sama dengan NIS siswa. Aktifkan metode Sidik jari di menu Pengaturan.</div><br>
   ${field('dN','Nama perangkat (mis. Mesin gerbang 1)')}<button class="b" id="dOk">Buat kunci perangkat</button><div id="dK"></div></div>
-  <div class="card wrap"><b>Perangkat terdaftar</b><table id="td"><tr><th>ID</th><th>Nama</th><th>Status</th><th>Terakhir kirim</th><th></th></tr>${L.map(p=>`<tr><td>${esc(p.ID)}</td><td>${esc(p.Nama)}</td><td>${esc(p.Status)}</td><td>${esc(p.Terakhir)}</td><td><button class="s" data-i="${esc(p.ID)}" data-s="${p.Status==='Aktif'?'Nonaktif':'Aktif'}">${p.Status==='Aktif'?'Nonaktifkan':'Aktifkan'}</button></td></tr>`).join('')}</table></div>
+  <div class="card wrap"><b>Perangkat terdaftar</b><table class="stk" id="td"><tr><th>ID</th><th>Nama</th><th>Status</th><th>Terakhir kirim</th><th></th></tr>${L.map(p=>`<tr><td>${esc(p.ID)}</td><td>${esc(p.Nama)}</td><td>${esc(p.Status)}</td><td>${esc(p.Terakhir)}</td><td><button class="s" data-i="${esc(p.ID)}" data-s="${p.Status==='Aktif'?'Nonaktif':'Aktif'}">${p.Status==='Aktif'?'Nonaktifkan':'Aktifkan'}</button></td></tr>`).join('')}</table></div>
   <div class="card"><b>Daftar siswa untuk diimpor ke mesin</b><div class="mu">CSV berisi PIN (=NIS) dan nama (maksimal 24 huruf).</div><button class="s" id="dCsv">Unduh CSV</button></div>`);
   $('#td').onclick=run(async e=>{if(e.target.dataset.i){await api('perangkat_status',{id:e.target.dataset.i,status:e.target.dataset.s});toast('Diperbarui');pDev()}});
   $('#dOk').onclick=run(async()=>{

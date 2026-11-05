@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#0f766e">
+<meta name="theme-color" content="#1e3a5f">
 <title>Presensi Kedatangan</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -35,35 +35,50 @@ input,select{font:inherit;width:100%;padding:12px;border:1px solid var(--bd);bor
 #qr{width:100%;max-height:340px;background:#000;border-radius:10px}
 table{width:100%;border-collapse:collapse;font-size:13px}td{padding:5px 3px;border-bottom:1px solid var(--bd)}
 #login{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;padding:16px;z-index:5}
-#login .card{width:100%;max-width:360px}
+#login .lg{width:100%;max-width:780px}
+.bar2{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 4px}.bar2 .sp{flex:1}
 .row{display:flex;gap:8px}.row>*{flex:1}
 </style>
+<link rel="stylesheet" href="tema.css">
+<script src="config.js"></script>
+<script src="tema.js"></script>
 </head>
 <body>
-<div id="login"><div class="card"><b style="font-size:19px">Presensi Sekolah</b><div class="mu" id="lm">Masuk untuk memulai</div><br>
+<div id="login"><div class="lg"><div class="lg-brand" id="lb"></div><div class="lg-form"><h2 style="margin:0 0 4px;font-size:21px">Masuk</h2><div class="mu" id="lm">Masuk untuk memulai</div><br>
 <input id="lApi" placeholder="URL API (Apps Script)"><input id="lU" placeholder="Username"><input id="lP" type="password" placeholder="Password">
-<button class="b" style="width:100%" id="lGo">Masuk</button></div></div>
+<button class="b" style="width:100%" id="lGo">Masuk</button></div></div></div>
+<div id="idle"></div>
 
 <div id="app">
-<div class="top"><div><div id="jam">--:--:--</div><div class="mu" id="tgl"></div></div>
-<div style="text-align:right"><span id="sj" class="pill wn">Memuat</span><div class="mu"><span id="qi"></span> <button class="s" id="sync">Sinkron</button> <span id="usr"></span> <button class="s" id="out">Keluar</button> <a id="adm" href="admin.html" class="mu" style="display:none">Admin</a></div></div></div>
+<header class="hd"><div class="brand" id="hb"></div><div style="text-align:right"><div id="jam">--:--:--</div><div class="mu" id="tgl"></div></div></header>
+<div class="bar2 mu"><span id="usr"></span><span id="qi"></span><span class="sp"></span><span id="sj" class="pill wn">Memuat</span><button class="s" id="sync">Sinkron</button><a id="adm" href="admin.html" class="s" style="display:none;text-decoration:none">Admin</a><button class="s" id="out">Keluar</button></div>
 <nav id="tabs"></nav>
 <div id="hasil"><span class="mu">Menunggu scan...</span></div>
 
 <section id="s-scan" class="card">
 <input id="scan" inputmode="numeric" placeholder="Scan kartu atau ketik NIS lalu Enter" autocomplete="off">
-<select id="mode"><option value="auto">Mode: otomatis (masuk/pulang sesuai jam)</option><option value="Masuk">Mode: Masuk</option><option value="Pulang">Mode: Pulang</option></select>
+<label class="mu">Mode presensi</label><select id="mode"><option value="auto">Otomatis (sesuai jam)</option><option value="Masuk">Masuk saja</option><option value="Pulang">Pulang saja</option></select>
 <div class="mu">Scanner USB mengetik kode lalu Enter, kursor selalu di kolom ini.</div>
 </section>
 <section id="s-cam" class="card" style="display:none"><div id="qr"></div><div class="mu">Arahkan barcode atau QR code ke kamera.</div></section>
 
 <section id="s-wajah" class="card" style="display:none"><video id="vid" autoplay playsinline muted style="width:100%;max-height:340px;border-radius:10px;background:#000;object-fit:cover"></video>
 <div id="wmsg" style="font-size:20px;font-weight:600;text-align:center;margin-top:8px">Memuat...</div></section>
+<section id="s-belum" class="card" style="display:none">
+<div class="rowb"><b>Belum presensi hari ini</b><span class="mu" id="bInfo"></span></div>
+<div class="row"><input id="bQ" placeholder="Cari nama atau NIS"><select id="bK"><option value="">Semua kelas</option></select></div>
+<button class="s" id="bRef">Muat ulang</button> <span class="mu" id="bWkt"></span>
+<div id="bList"></div>
+</section>
+<dialog id="dz"><b id="dzT">Catat izin / sakit</b><div class="mu" id="dzN"></div><br>
+<label>Jenis</label><select id="dzJ"><option>Sakit</option><option>Izin</option></select>
+<label>Sampai tanggal (kosong = hari ini saja, maksimal 7 hari)</label><input id="dzE" type="date">
+<label>Keterangan (mis. demam, acara keluarga)</label><input id="dzK">
+<button class="b" id="dzOk">Simpan</button> <button class="s" id="dzX">Batal</button></dialog>
 <div class="stat" id="stat"></div>
-<div class="card"><b>10 presensi terakhir</b><table id="rec"></table></div>
+<div class="card" id="recCard"><b>10 presensi terakhir</b><table id="rec"></table></div>
 </div>
 
-<script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 <script>
 const $=s=>document.querySelector(s);
@@ -134,7 +149,7 @@ setInterval(()=>{
 function beep(ok){try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator();o.frequency.value=ok?880:220;o.connect(a.destination);o.start();o.stop(a.currentTime+(ok?.12:.4))}catch(e){}}
 function say(t){if(!t)return;try{const u=new SpeechSynthesisUtterance(t);u.lang='id-ID';speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}}
 function tampil(c,t,m,p){
-  const h=$('#hasil');h.className=c;
+  const h=$('#hasil');h.className=c;h.style.animation='none';void h.offsetWidth;h.style.animation='';
   h.innerHTML=(p&&p.foto?'<img src="'+p.foto+'">':'')+'<div><b>'+esc(t)+'</b>'+esc(m)+'</div>';
   beep(c==='ok'||c==='wn');
 }
@@ -192,6 +207,7 @@ function drawTabs(){
   if(m.includes('barcode')||m.includes('nis'))T.push(['scan','Scanner / Ketik NIS']);
   if(m.includes('barcode')||m.includes('qr'))T.push(['cam','Kamera']);
   if(m.includes('wajah'))T.push(['wajah','Wajah']);
+  T.push(['belum','Belum presensi <span id="bCnt" class="pill wn" style="padding:0 8px"></span>']);
   $('#tabs').innerHTML=T.map(t=>'<button data-t="'+t[0]+'">'+t[1]+'</button>').join('')||'<span class="mu">Tidak ada metode aktif. Atur di Admin.</span>';
   if(T.length)go(T.some(t=>t[0]===tab)?tab:T[0][0]);
 }
@@ -199,9 +215,10 @@ $('#tabs').onclick=e=>{if(e.target.dataset.t)go(e.target.dataset.t)};
 function go(t){
   tab=t;faceStop();if(qr){qr.stop().then(()=>qr.clear()).catch(()=>{});qr=null}
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
-  $('#s-scan').style.display=t==='scan'?'block':'none';$('#s-cam').style.display=t==='cam'?'block':'none';$('#s-wajah').style.display=t==='wajah'?'block':'none';
+  $('#s-scan').style.display=t==='scan'?'block':'none';$('#s-cam').style.display=t==='cam'?'block':'none';$('#s-wajah').style.display=t==='wajah'?'block':'none';$('#s-belum').style.display=t==='belum'?'block':'none';$('#stat').style.display=$('#recCard').style.display=t==='belum'?'none':'';
   if(t==='scan')$('#scan').focus();
   if(t==='wajah')startFace();
+  if(t==='belum')loadBelum();
   if(t==='cam'){
     qr=new Html5Qrcode('qr');
     const cb=(x,r)=>mark(x,(r&&r.result&&r.result.format&&r.result.format.formatName==='QR_CODE')?'qr':'barcode'),cf={fps:10,qrbox:{width:300,height:160}};
@@ -281,6 +298,60 @@ async function faceTick(){
     if(ok){fS.step='cek';fS.cnt=0;setMsg('Memverifikasi...')}
   }
 }
+
+/* ===== Belum presensi + catat izin/sakit oleh petugas ===== */
+let B=null;
+async function loadBelum(quiet){
+  try{B=await api('belum_hadir');tampilBelum()}
+  catch(e){if(!quiet){$('#bList').innerHTML='<div class="mu" style="padding:10px 0">'+(B?'Tidak bisa memuat ulang (offline?). Menampilkan data terakhir. ':'Perlu internet untuk memuat daftar. ')+esc(e.message)+'</div>';if(B)tampilBelum(true)}}
+}
+function tampilBelum(offline){
+  if(!B)return;
+  const L=B.v.filter(s=>!sudah[s.nis+'|Masuk']&&!(izinLokal[s.nis])); // yang baru saja scan atau dicatat izin langsung hilang dari daftar
+  const q=$('#bQ').value.toLowerCase(),k=$('#bK').value;
+  const ks=[...new Set(B.v.map(s=>s.kelas))].sort();
+  $('#bK').innerHTML='<option value="">Semua kelas</option>'+ks.map(x=>'<option'+(x===k?' selected':'')+'>'+esc(x)+'</option>').join('');
+  const F=L.filter(s=>(!q||(s.nama+' '+s.nis).toLowerCase().includes(q))&&(!k||s.kelas===k));
+  const bc=$('#bCnt');if(bc)bc.textContent=L.length;
+  $('#bInfo').textContent=(B.aktif?'':'Bukan hari aktif • ')+'Hadir '+B.hadir+' • Izin/sakit '+B.izin+' • Belum '+L.length+' dari '+B.total;
+  $('#bWkt').textContent=(offline?'(data lama) ':'')+'Diperbarui '+jkt();
+  $('#bList').innerHTML=F.map(s=>{
+    const no=String(s.wa||'').replace(/\D/g,''),psn=encodeURIComponent('Yth. Orang tua/wali '+s.nama+' (kelas '+s.kelas+'). Anak Bapak/Ibu belum tercatat hadir di sekolah hari ini. Mohon konfirmasi kehadirannya. Terima kasih. '+TEMA.nama);
+    return '<div class="brow"><div><b>'+esc(s.nama)+'</b><div class="mu">Kelas '+esc(s.kelas)+' • NIS '+esc(s.nis)+(no?'':' • tanpa nomor orang tua')+'</div></div><div class="bact">'+
+      (no?'<a class="s" target="_blank" rel="noopener" href="https://wa.me/'+no+'?text='+psn+'">WA</a><a class="s" href="tel:+'+no+'">Telepon</a>':'')+
+      '<button class="s" data-i="'+esc(s.nis)+'" data-j="Sakit">Sakit</button><button class="s" data-i="'+esc(s.nis)+'" data-j="Izin">Izin</button></div></div>';
+  }).join('')||'<div class="mu" style="padding:12px 0">'+(L.length?'Tidak ada yang cocok dengan pencarian.':'Semua siswa sudah tercatat. 👍')+'</div>';
+}
+const izinLokal={};let dzNis='';
+$('#bRef').onclick=()=>loadBelum();
+$('#bQ').oninput=()=>tampilBelum();$('#bK').onchange=()=>tampilBelum();
+$('#bList').onclick=e=>{
+  const nis=e.target.dataset.i;if(!nis)return;
+  const s=B.v.find(x=>x.nis===nis);dzNis=nis;
+  $('#dzN').textContent=s.nama+' • kelas '+s.kelas;$('#dzJ').value=e.target.dataset.j;$('#dzE').value='';$('#dzK').value='';$('#dz').showModal();
+};
+$('#dzX').onclick=()=>$('#dz').close();
+$('#dzOk').onclick=async()=>{
+  try{
+    const r=await api('izin_simpan',{nis:dzNis,jenis:$('#dzJ').value,tgl:new Date(Date.now()+off).toLocaleDateString('sv-SE',{timeZone:'Asia/Jakarta'}),sampai:$('#dzE').value||undefined,ket:$('#dzK').value});
+    izinLokal[dzNis]=1;$('#dz').close();tampil('ok','Tercatat '+$('#dzJ').value.toLowerCase(),r.n+' hari');tampilBelum();loadBelum(true);
+  }catch(e){alert(e.message)}
+};
+setInterval(()=>{if(tok&&D&&D.orang)loadBelum(true)},tab==='belum'?60000:120000);
+setInterval(()=>{if(tab==='belum'&&tok)loadBelum(true)},60000);
+
+/* identitas sekolah + layar siaga */
+$('#lb').innerHTML=brandLogo(84)+'<h1>'+esc(TEMA.nama)+'</h1><div class="ln"></div><p>'+esc(TEMA.slogan)+'</p>';
+$('#hb').innerHTML=brandLogo(46)+'<div><div class="nm">'+esc(TEMA.nama)+'</div><div class="sl">'+esc(TEMA.slogan)+'</div></div>';
+$('#idle').innerHTML=brandLogo(96)+'<div class="nm">'+esc(TEMA.nama)+'</div><div class="ln"></div><div class="big" id="jam2">--:--</div><div id="tgl2"></div><div class="hint">Silakan scan kartu Anda</div>';
+let lastAct=Date.now();
+const wake=()=>{lastAct=Date.now();$('#idle').style.display='none'};
+['keydown','click','touchstart','pointerdown'].forEach(e=>addEventListener(e,wake,true));
+setInterval(()=>{
+  const on=tab==='scan'&&tok&&Date.now()-lastAct>45000,el=$('#idle');
+  el.style.display=on?'flex':'none';
+  if(on){const n=new Date(Date.now()+off);$('#jam2').textContent=n.toLocaleTimeString('id-ID',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',hour12:false});$('#tgl2').textContent=n.toLocaleDateString('id-ID',{timeZone:'Asia/Jakarta',dateStyle:'full'})}
+},1000);
 
 me&&tok?start():showLogin();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
