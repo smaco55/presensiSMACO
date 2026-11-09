@@ -23,7 +23,7 @@ nav button{border:1px solid var(--bd);background:var(--card);color:var(--tx);pad
 nav button.on{background:var(--pr);color:var(--bg);border-color:var(--pr);font-weight:600}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
 input,select{font:inherit;width:100%;padding:12px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);margin-bottom:8px}
-#scan{font-size:24px;text-align:center;padding:16px}
+#scan{position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:0;padding:0;margin:0;border:0}
 .b{font:inherit;background:var(--pr);color:var(--bg);border:0;border-radius:10px;padding:11px 16px;font-weight:600;cursor:pointer}
 .s{font:inherit;background:none;border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer}
 #hasil{display:flex;gap:16px;align-items:center;border-radius:14px;padding:16px;margin-bottom:12px;min-height:120px;background:var(--card);border:1px solid var(--bd)}
@@ -56,20 +56,36 @@ table{width:100%;border-collapse:collapse;font-size:13px}td{padding:5px 3px;bord
 <div id="hasil"><span class="mu">Menunggu scan...</span></div>
 
 <section id="s-scan" class="card">
-<input id="scan" inputmode="numeric" placeholder="Scan kartu atau ketik NIS lalu Enter" autocomplete="off">
-<label class="mu">Mode presensi</label><select id="mode"><option value="auto">Otomatis (sesuai jam)</option><option value="Masuk">Masuk saja</option><option value="Pulang">Pulang saja</option></select>
-<div class="mu">Scanner USB mengetik kode lalu Enter, kursor selalu di kolom ini.</div>
+<div class="scanbox"><svg viewBox="0 0 96 64" fill="currentColor" aria-hidden="true"><rect x="4" y="6" width="4" height="52"/><rect x="12" y="6" width="8" height="52"/><rect x="24" y="6" width="4" height="52"/><rect x="32" y="6" width="12" height="52"/><rect x="48" y="6" width="4" height="52"/><rect x="56" y="6" width="8" height="52"/><rect x="68" y="6" width="4" height="52"/><rect x="76" y="6" width="12" height="52"/></svg>
+<div class="scantx">Tempelkan kartu pelajar pada pembaca</div><div class="mu" id="modeLbl">Mode: otomatis (sesuai jam)</div></div>
+<input id="scan" inputmode="none" autocomplete="off" tabindex="-1" aria-hidden="true">
 </section>
 <section id="s-cam" class="card" style="display:none"><div id="qr"></div><div class="mu">Arahkan barcode atau QR code ke kamera.</div></section>
 
 <section id="s-wajah" class="card" style="display:none"><video id="vid" autoplay playsinline muted style="width:100%;max-height:340px;border-radius:10px;background:#000;object-fit:cover"></video>
 <div id="wmsg" style="font-size:20px;font-weight:600;text-align:center;margin-top:8px">Memuat...</div></section>
 <section id="s-belum" class="card" style="display:none">
+<div id="bL"><b>Belum presensi (khusus petugas)</b><div class="mu">Area ini terkunci karena memuat data kontak dan tombol pencatatan. Masukkan password akun petugas untuk membuka selama 5 menit.</div><br>
+<input id="bP" type="password" placeholder="Password petugas" autocomplete="off"><button class="b" id="bBuka">Buka</button> <button class="s" id="bX1">Kembali</button></div>
+<div id="bU" style="display:none">
 <div class="rowb"><b>Belum presensi hari ini</b><span class="mu" id="bInfo"></span></div>
 <div class="row"><input id="bQ" placeholder="Cari nama atau NIS"><select id="bK"><option value="">Semua kelas</option></select></div>
 <button class="s" id="bRef">Muat ulang</button> <span class="mu" id="bWkt"></span>
 <div id="bList"></div>
+<button class="s" id="bKunci" style="margin-top:8px">Kunci sekarang</button></div>
 </section>
+<section id="s-nis" class="card" style="display:none"><div class="rowb"><b>Input NIS (khusus petugas)</b></div>
+<div id="dmL"><div class="mu">Menu ini terkunci agar siswa tidak bisa mengetik nomor induk sendiri. Masukkan password akun petugas untuk membuka selama 5 menit.</div><br>
+<input id="dmP" type="password" placeholder="Password petugas" autocomplete="off"><button class="b" id="dmBuka">Buka</button> <button class="s" id="dmX1">Kembali</button></div>
+<div id="dmU" style="display:none"><div class="mu" id="dmS">Terbuka</div><br>
+<label>Nomor induk siswa</label><input id="dmN" inputmode="numeric" autocomplete="off" placeholder="Ketik NIS lalu tekan Enter">
+<div id="dmPrev" style="display:none"></div>
+<div id="dmAct" style="display:none"><button class="b" id="dmOk" disabled>Ya, benar. Catat presensi</button> <button class="s" id="dmNo">Bukan, ulangi</button></div>
+<label style="display:block;margin-top:10px">Mode presensi</label><select id="mode"><option value="auto">Otomatis (sesuai jam)</option><option value="Masuk">Masuk saja</option><option value="Pulang">Pulang saja</option></select>
+<button class="s" id="dmX2" style="margin-top:6px">Kunci sekarang</button></div></section>
+<dialog id="dk"><div class="konf"><img id="dkF" alt="" style="display:none"><div><div class="mu">Apakah ini anak yang dimaksud?</div><b id="dkN"></b><div class="mu" id="dkI"></div><div class="pill wn" id="dkR" style="margin-top:6px"></div></div></div>
+<div class="mu">Siswa akan dicatat HADIR sekarang dengan keterangan di atas.</div><br>
+<button class="b" id="dkOk">Ya, benar. Catat hadir</button> <button class="s" id="dkX">Batal</button></dialog>
 <dialog id="dz"><b id="dzT">Catat izin / sakit</b><div class="mu" id="dzN"></div><br>
 <label>Jenis</label><select id="dzJ"><option>Sakit</option><option>Izin</option></select>
 <label>Sampai tanggal (kosong = hari ini saja, maksimal 7 hari)</label><input id="dzE" type="date">
@@ -204,32 +220,38 @@ function ringkas(){
 /* Tab, scanner, kamera */
 function drawTabs(){
   const m=D.st.metode_aktif.split(','),T=[];
-  if(m.includes('barcode')||m.includes('nis'))T.push(['scan','Scanner / Ketik NIS']);
+  if(m.includes('barcode'))T.push(['scan','Scan Kartu']);
   if(m.includes('barcode')||m.includes('qr'))T.push(['cam','Kamera']);
   if(m.includes('wajah'))T.push(['wajah','Wajah']);
+  if(m.includes('nis')&&me&&['Admin','Petugas'].includes(me.peran))T.push(['nis','Input NIS 🔒']);
   T.push(['belum','Belum presensi <span id="bCnt" class="pill wn" style="padding:0 8px"></span>']);
   $('#tabs').innerHTML=T.map(t=>'<button data-t="'+t[0]+'">'+t[1]+'</button>').join('')||'<span class="mu">Tidak ada metode aktif. Atur di Admin.</span>';
   if(T.length)go(T.some(t=>t[0]===tab)?tab:T[0][0]);
 }
-$('#tabs').onclick=e=>{if(e.target.dataset.t)go(e.target.dataset.t)};
+$('#tabs').onclick=e=>{const b=e.target.closest('button');if(b&&b.dataset.t)go(b.dataset.t)};
 function go(t){
+  if((tab==='nis'||tab==='belum')&&t!=='nis'&&t!=='belum'&&manualBuka())dmKunci(); // keluar dari area petugas = kunci kembali
   tab=t;faceStop();if(qr){qr.stop().then(()=>qr.clear()).catch(()=>{});qr=null}
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
-  $('#s-scan').style.display=t==='scan'?'block':'none';$('#s-cam').style.display=t==='cam'?'block':'none';$('#s-wajah').style.display=t==='wajah'?'block':'none';$('#s-belum').style.display=t==='belum'?'block':'none';$('#stat').style.display=$('#recCard').style.display=t==='belum'?'none':'';
+  $('#s-scan').style.display=t==='scan'?'block':'none';$('#s-cam').style.display=t==='cam'?'block':'none';$('#s-wajah').style.display=t==='wajah'?'block':'none';$('#s-belum').style.display=t==='belum'?'block':'none';$('#s-nis').style.display=t==='nis'?'block':'none';$('#stat').style.display=$('#recCard').style.display=t==='belum'?'none':'';
   if(t==='scan')$('#scan').focus();
   if(t==='wajah')startFace();
-  if(t==='belum')loadBelum();
+  if(t==='belum'){dmTampil();loadBelum()}
+  if(t==='nis'){dmReset();dmTampil();setTimeout(()=>(manualBuka()?$('#dmN'):$('#dmP')).focus(),50)}
   if(t==='cam'){
     qr=new Html5Qrcode('qr');
     const cb=(x,r)=>mark(x,(r&&r.result&&r.result.format&&r.result.format.formatName==='QR_CODE')?'qr':'barcode'),cf={fps:10,qrbox:{width:300,height:160}};
     qr.start({facingMode:'environment'},cf,cb).catch(()=>qr.start({facingMode:'user'},cf,cb).catch(e=>tampil('err','Kamera gagal dibuka',String(e))));
   }
 }
+const AMBANG_SCANNER_MS=50; // rata-rata ms per karakter; ketikan lebih lambat dari ini dianggap diketik tangan dan ditolak
 $('#scan').onkeydown=e=>{
   if(e.key.length===1&&!e.target.value)t0=performance.now();
   if(e.key==='Enter'){
-    const v=e.target.value.trim(),cepat=v.length>=4&&(performance.now()-t0)/v.length<80; // ketikan sangat cepat = scanner
-    mark(v,cepat?'barcode':'nis');e.target.value='';
+    const v=e.target.value.trim(),ms=(performance.now()-t0)/Math.max(1,v.length);
+    if(v.length>=4&&ms<AMBANG_SCANNER_MS)mark(v,'barcode');
+    else if(v)tampil('err','Input ketik tidak diterima','Siswa hanya dapat scan kartu. Input NIS manual hanya oleh petugas.');
+    e.target.value='';
   }
 };
 document.addEventListener('click',e=>{if(tab==='scan'&&!['SELECT','OPTION','BUTTON','INPUT'].includes(e.target.tagName))$('#scan').focus()});
@@ -302,6 +324,7 @@ async function faceTick(){
 /* ===== Belum presensi + catat izin/sakit oleh petugas ===== */
 let B=null;
 async function loadBelum(quiet){
+  if(!bukaBelum())return;
   try{B=await api('belum_hadir');tampilBelum()}
   catch(e){if(!quiet){$('#bList').innerHTML='<div class="mu" style="padding:10px 0">'+(B?'Tidak bisa memuat ulang (offline?). Menampilkan data terakhir. ':'Perlu internet untuk memuat daftar. ')+esc(e.message)+'</div>';if(B)tampilBelum(true)}}
 }
@@ -319,7 +342,7 @@ function tampilBelum(offline){
     const no=String(s.wa||'').replace(/\D/g,''),psn=encodeURIComponent('Yth. Orang tua/wali '+s.nama+' (kelas '+s.kelas+'). Anak Bapak/Ibu belum tercatat hadir di sekolah hari ini. Mohon konfirmasi kehadirannya. Terima kasih. '+TEMA.nama);
     return '<div class="brow"><div><b>'+esc(s.nama)+'</b><div class="mu">Kelas '+esc(s.kelas)+' • NIS '+esc(s.nis)+(no?'':' • tanpa nomor orang tua')+'</div></div><div class="bact">'+
       (no?'<a class="s" target="_blank" rel="noopener" href="https://wa.me/'+no+'?text='+psn+'">WA</a><a class="s" href="tel:+'+no+'">Telepon</a>':'')+
-      '<button class="s" data-i="'+esc(s.nis)+'" data-j="Sakit">Sakit</button><button class="s" data-i="'+esc(s.nis)+'" data-j="Izin">Izin</button></div></div>';
+      '<button class="s" data-i="'+esc(s.nis)+'" data-j="Sakit">Sakit</button><button class="s" data-i="'+esc(s.nis)+'" data-j="Izin">Izin</button><button class="s" data-i="'+esc(s.nis)+'" data-m="Kartu bermasalah">Kartu bermasalah</button><button class="s" data-i="'+esc(s.nis)+'" data-m="Lupa bawa kartu">Lupa bawa kartu</button></div></div>';
   }).join('')||'<div class="mu" style="padding:12px 0">'+(L.length?'Tidak ada yang cocok dengan pencarian.':'Semua siswa sudah tercatat. 👍')+'</div>';
 }
 const izinLokal={};let dzNis='';
@@ -327,7 +350,7 @@ $('#bRef').onclick=()=>loadBelum();
 $('#bQ').oninput=()=>tampilBelum();$('#bK').onchange=()=>tampilBelum();
 $('#bList').onclick=e=>{
   const nis=e.target.dataset.i;if(!nis)return;
-  const s=B.v.find(x=>x.nis===nis);dzNis=nis;
+  const s=B.v.find(x=>x.nis===nis);if(e.target.dataset.m)return tanyaKartu(s,e.target.dataset.m);dzNis=nis;
   $('#dzN').textContent=s.nama+' • kelas '+s.kelas;$('#dzJ').value=e.target.dataset.j;$('#dzE').value='';$('#dzK').value='';$('#dz').showModal();
 };
 $('#dzX').onclick=()=>$('#dz').close();
@@ -339,6 +362,89 @@ $('#dzOk').onclick=async()=>{
 };
 setInterval(()=>{if(tok&&D&&D.orang)loadBelum(true)},tab==='belum'?60000:120000);
 setInterval(()=>{if(tab==='belum'&&tok)loadBelum(true)},60000);
+
+/* ===== Input NIS manual: khusus petugas, dengan verifikasi password dan konfirmasi identitas ===== */
+let manualSampai=0,manualT=null;
+const manualBuka=()=>Date.now()<manualSampai;
+const bukaBelum=()=>!!(me&&me.peran==='Wali')||manualBuka(); // wali kelas hanya melihat kelasnya sendiri, tanpa kunci
+function dmTampil(){
+  const b=manualBuka(),bb=bukaBelum();$('#dmL').style.display=b?'none':'block';$('#dmU').style.display=b?'block':'none';$('#bL').style.display=bb?'none':'block';$('#bU').style.display=bb?'block':'none';
+  if(b){const s=Math.max(0,Math.round((manualSampai-Date.now())/1000));$('#dmS').textContent='Terbuka. Terkunci otomatis dalam '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+}
+function dmKunci(){manualSampai=0;clearInterval(manualT);api('kunci_manual').catch(()=>{});dmTampil()}
+$('#dmX1').onclick=()=>go('scan');
+$('#dmX2').onclick=()=>{dmKunci();go('scan')};
+$('#dmBuka').onclick=async()=>{
+  try{await api('buka_manual',{password:$('#dmP').value});manualSampai=Date.now()+300000;$('#dmP').value='';
+    clearInterval(manualT);manualT=setInterval(()=>{if(!manualBuka()){clearInterval(manualT);dmTampil()}else dmTampil()},1000);dmTampil();$('#dmN').focus()}
+  catch(e){alert(e.message)}
+};
+$('#dmP').onkeydown=e=>{if(e.key==='Enter')$('#dmBuka').click()};
+let dmP=null,dmAt=0;
+const dmReset=()=>{dmP=null;$('#dmN').value='';$('#dmPrev').style.display='none';$('#dmAct').style.display='none';$('#dmOk').disabled=true};
+$('#dmN').oninput=()=>{dmP=null;$('#dmPrev').style.display='none';$('#dmAct').style.display='none'};
+$('#dmN').onkeydown=e=>{
+  if(e.key!=='Enter')return;
+  const v=$('#dmN').value.trim();if(!v)return;
+  dmP=(D&&D.orang||[]).find(x=>x.nis===v||x.kode===v)||null;
+  const pv=$('#dmPrev');pv.style.display='block';
+  if(!dmP){pv.innerHTML='<div style="color:var(--er);padding:8px 0;font-weight:600">NIS '+esc(v)+' tidak ditemukan. Periksa kembali nomornya.</div>';$('#dmAct').style.display='none';beep(0);return}
+  // konfirmasi identitas: petugas harus memastikan ini anak yang dimaksud sebelum presensi dicatat
+  pv.innerHTML='<div class="konf">'+(dmP.foto?'<img src="'+dmP.foto+'" alt="">':'')+'<div><div class="mu">Apakah ini anak yang dimaksud?</div><b>'+esc(dmP.nama)+'</b><div class="mu">Kelas '+esc(dmP.kelas)+' • NIS '+esc(dmP.nis)+'</div></div></div>';
+  $('#dmAct').style.display='block';$('#dmOk').disabled=false;dmAt=Date.now();$('#dmOk').focus();
+};
+$('#dmNo').onclick=()=>{dmReset();$('#dmN').focus()};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&tab==='nis'&&dmP){dmReset();$('#dmN').focus()}});
+$('#mode').onchange=()=>{const v=$('#mode').value;$('#modeLbl').textContent='Mode: '+(v==='auto'?'otomatis (sesuai jam)':v==='Masuk'?'masuk saja':'pulang saja')};
+$('#dmOk').onclick=async()=>{
+  if(!dmP)return;
+  if(Date.now()-dmAt<400)return; // cegah Enter ganda tanpa sengaja langsung menyetujui
+  if(!manualBuka()){dmTampil();return alert('Akses manual sudah terkunci. Buka lagi dengan password.')}
+  const m=$('#mode').value,h=jkt(),jenis=m==='auto'?(h>=D.st.jam_mulai_pulang?'Pulang':'Masuk'):m,p=dmP;
+  $('#dmOk').disabled=true;
+  try{
+    const r=await api('hadir',{items:[{kode:p.nis,metode:'nis',jenis,ts:Date.now()+off,q:0,konf:true}]}),x=r.res[0];
+    if(x.err){tampil('err',p.nama,'Ditolak: '+x.err,p)}
+    else if(x.dup){sudah[p.nis+'|'+x.jenis]=x.jam+'|';tampil('wn',p.nama,'Sudah presensi '+x.jenis.toLowerCase()+' pukul '+x.jam,p)}
+    else{sudah[p.nis+'|'+x.jenis]=x.jam+'|'+x.status;rec.unshift({h:x.jam,n:p.nama,k:p.kelas,j:x.jenis,s:x.status});rec=rec.slice(0,10);ringkas();
+      tampil(x.status==='Terlambat'?'wn':'ok',p.nama,p.kelas+' • '+x.jenis+' • '+x.status+' • '+x.jam+' • manual',p);say(p.nama+(x.status==='Terlambat'?', terlambat':', hadir'))}
+    dmReset();$('#dmN').focus();
+  }catch(e){$('#dmOk').disabled=false;alert('Gagal mencatat (input manual membutuhkan internet): '+e.message)}
+};
+
+/* Kartu bermasalah / lupa bawa kartu: siswa hadir tetapi tidak dapat scan. Dicatat petugas (area terbuka) setelah konfirmasi identitas. */
+$('#bBuka').onclick=async()=>{
+  try{await api('buka_manual',{password:$('#bP').value});manualSampai=Date.now()+300000;$('#bP').value='';
+    clearInterval(manualT);manualT=setInterval(()=>{if(!manualBuka()){clearInterval(manualT);dmTampil()}else dmTampil()},1000);dmTampil();loadBelum()}
+  catch(e){alert(e.message)}
+};
+$('#bP').onkeydown=e=>{if(e.key==='Enter')$('#bBuka').click()};
+$('#bX1').onclick=()=>go('scan');
+$('#bKunci').onclick=()=>{dmKunci();go('scan')};
+let kP=null,kKet='',kAt=0;
+function tanyaKartu(s,ket){
+  if(!bukaBelum())return;
+  const p=(D&&D.orang||[]).find(x=>x.nis===s.nis)||{nis:s.nis,nama:s.nama,kelas:s.kelas,foto:''};
+  kP=p;kKet=ket;kAt=Date.now();
+  $('#dkF').style.display=p.foto?'block':'none';if(p.foto)$('#dkF').src=p.foto;
+  $('#dkN').textContent=p.nama;$('#dkI').textContent='Kelas '+p.kelas+' • NIS '+p.nis;$('#dkR').textContent=ket;
+  $('#dk').showModal();$('#dkOk').focus();
+}
+$('#dkX').onclick=()=>$('#dk').close();
+$('#dkOk').onclick=async()=>{
+  if(!kP||Date.now()-kAt<400)return; // cegah Enter ganda langsung menyetujui
+  const p=kP;$('#dkOk').disabled=true;
+  try{
+    const r=await api('hadir',{items:[{kode:p.nis,metode:'tanpa_kartu',ket:kKet,jenis:'Masuk',ts:Date.now()+off,q:0,konf:true}]}),x=r.res[0];
+    $('#dk').close();
+    if(x.err)tampil('err',p.nama,'Ditolak: '+x.err,p);
+    else if(x.dup){sudah[p.nis+'|Masuk']=x.jam+'|';tampil('wn',p.nama,'Sudah presensi pukul '+x.jam,p)}
+    else{sudah[p.nis+'|Masuk']=x.jam+'|'+x.status;rec.unshift({h:x.jam,n:p.nama,k:p.kelas,j:'Masuk',s:x.status});rec=rec.slice(0,10);ringkas();
+      tampil(x.status==='Terlambat'?'wn':'ok',p.nama,p.kelas+' • Masuk • '+x.status+' • '+x.jam+' • '+kKet,p);say(p.nama+(x.status==='Terlambat'?', terlambat':', hadir'))}
+    tampilBelum();loadBelum(true);
+  }catch(e){alert('Gagal mencatat (membutuhkan internet): '+e.message)}
+  $('#dkOk').disabled=false;
+};
 
 /* identitas sekolah + layar siaga */
 $('#lb').innerHTML=brandLogo(84)+'<h1>'+esc(TEMA.nama)+'</h1><div class="ln"></div><p>'+esc(TEMA.slogan)+'</p>';

@@ -240,7 +240,7 @@ async function pPetugas(){
 
 /* Pengaturan */
 async function pSet(){
-  const [ps,jl]=await Promise.all([api('pengaturan_get'),api('jadwal_list')]),s=ps.v,JL=jl.v,H=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'],M={barcode:'Barcode',qr:'QR Code',nis:'Ketik NIS',wajah:'Wajah',sidik:'Sidik jari (perangkat eksternal)'};
+  const [ps,jl]=await Promise.all([api('pengaturan_get'),api('jadwal_list')]),s=ps.v,JL=jl.v,H=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'],M={barcode:'Barcode',qr:'QR Code',nis:'Input NIS manual (khusus petugas, dengan konfirmasi)',wajah:'Wajah',sidik:'Sidik jari (perangkat eksternal)'};
   V(`<div class="card"><b>Jam presensi</b><div class="row">${field('sM','Jam mulai',s.jam_mulai,'time')}${field('sB','Batas terlambat',s.jam_batas_terlambat,'time')}${field('sE','Jam berakhir',s.jam_selesai,'time')}${field('sP','Mulai jam pulang',s.jam_mulai_pulang,'time')}</div>
   <label>Hari aktif sekolah</label><div class="chk">${H.map((h,i)=>`<label><input type="checkbox" class="hr" value="${i+1}" ${s.hari_aktif.split(',').includes(String(i+1))?'checked':''} style="width:auto;margin:0 4px 0 8px">${h}</label>`).join('')}</div><br>
   ${field('sL','Hari libur (yyyy-mm-dd, pisah koma)',s.hari_libur)}
@@ -303,7 +303,7 @@ async function pLap(){
   V(`<div class="card" id="cLap"><b>Laporan presensi</b>
   <div class="row">${field('fD','Dari',t,'date')}${field('fS','Sampai',t,'date')}<div><label>Kelas</label><select id="fK">${ko}</select></div>${field('fN','Nama / NIS')}</div>
   <div class="row"><div><label>Status</label><select id="fSt">${op(['Tepat waktu','Terlambat','Izin','Sakit','Pulang','Belum presensi','Dibatalkan'],'Semua')}</select></div>
-  <div><label>Metode</label><select id="fM">${op(['barcode','qr','nis','wajah','sidik'],'Semua')}</select></div>
+  <div><label>Metode</label><select id="fM">${op(['barcode','qr','nis','wajah','sidik','tanpa_kartu'],'Semua')}</select></div>
   <div><label>Tipe</label><select id="fT"><option value="Siswa">Siswa</option><option value="Guru">Guru</option><option value="">Semua</option></select></div></div>
   <button class="b" id="bGo">Tampilkan</button> <button class="s" id="bXl">Excel</button> <button class="s" id="bPr">Cetak / PDF</button>
   <div class="mu" id="fInfo"></div><div class="wrap"><table id="tL"></table></div></div>
@@ -319,7 +319,7 @@ async function pLap(){
     const f={dari:$('#fD').value,sampai:$('#fS').value,kelas:$('#fK').value,nama:$('#fN').value,status:$('#fSt').value,metode:$('#fM').value,tipe:$('#fT').value};
     const r=await api('laporan',f);LR=r.v;
     $('#fInfo').textContent=`${r.total} baris • ${f.dari} s/d ${f.sampai}${f.kelas?' • kelas '+f.kelas:''}${f.status?' • '+f.status:''}${r.total>LR.length?' • Excel berisi maksimal 5000 baris':''}`;
-    $('#tL').innerHTML='<tr><th>Tanggal</th><th>Jam</th><th>NIS</th><th>Nama</th><th>Kelas</th><th>Jenis</th><th>Metode</th><th>Status</th><th></th></tr>'+LR.slice(0,500).map(x=>`<tr><td>${esc(x.Tanggal)}</td><td>${esc(x.Waktu.slice(0,5))}</td><td>${esc(x.NIS)}</td><td>${esc(x.Nama)}</td><td>${esc(x.Kelas)}</td><td>${esc(x.Jenis)}</td><td>${esc(x.Metode)}</td><td>${esc(x.Status)}</td><td>${me.peran==='Admin'&&x.ID&&x.Status!=='Dibatalkan'&&x.Status!=='Belum presensi'?`<button class="s" data-b="${esc(x.ID)}">Batalkan</button>`:''}</td></tr>`).join('')+(LR.length>500?'<tr><td colspan="9" class="mu">Tampil 500 baris pertama. Unduh Excel untuk semuanya.</td></tr>':'');
+    $('#tL').innerHTML='<tr><th>Tanggal</th><th>Jam</th><th>NIS</th><th>Nama</th><th>Kelas</th><th>Jenis</th><th>Metode</th><th>Status</th><th>Ket</th><th></th></tr>'+LR.slice(0,500).map(x=>`<tr><td>${esc(x.Tanggal)}</td><td>${esc(x.Waktu.slice(0,5))}</td><td>${esc(x.NIS)}</td><td>${esc(x.Nama)}</td><td>${esc(x.Kelas)}</td><td>${esc(x.Jenis)}</td><td>${esc(x.Metode)}</td><td>${esc(x.Status)}</td><td>${esc(x.Keterangan||'')}</td><td>${me.peran==='Admin'&&x.ID&&x.Status!=='Dibatalkan'&&x.Status!=='Belum presensi'?`<button class="s" data-b="${esc(x.ID)}">Batalkan</button>`:''}</td></tr>`).join('')+(LR.length>500?'<tr><td colspan="10" class="mu">Tampil 500 baris pertama. Unduh Excel untuk semuanya.</td></tr>':'');
   });
   $('#bXl').onclick=()=>xl(LR,'laporan-presensi-'+$('#fD').value);
   $('#bPr').onclick=()=>cetak('#cLap');
