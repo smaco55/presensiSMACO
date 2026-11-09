@@ -71,3 +71,13 @@ tbody tr:hover td{background:var(--pr-s)}
 dialog{border:1px solid var(--bd);background:var(--card);color:var(--tx);max-width:420px;width:92%}
 dialog::backdrop{background:rgba(10,16,24,.5)}
 @media(max-width:640px){.hd>div[style*="text-align:right"]{text-align:left!important}}
+
+#dm .brow{margin:6px 0 10px;border-bottom:0;border-top:1px solid var(--bd)}
+#dmOk,#dmX2,#dmBuka,#dmX1{margin-top:6px}
+
+/* tab scan tanpa kolom isian & konfirmasi identitas pada Input NIS */
+.scanbox{text-align:center;padding:30px 10px}
+.scantx{font-family:var(--serif);font-size:24px;margin:14px 0 6px;color:var(--pr)}
+.konf{display:flex;gap:16px;align-items:center;padding:14px;margin:12px 0;border:2px solid var(--pr);border-radius:14px;background:var(--pr-s)}
+.konf img{width:84px;height:112px;object-fit:cover;border-radius:10px;border:2px solid var(--ak);flex:none}
+.konf b{display:block;font-family:var(--serif);font-size:24px;line-height:1.2;margin:2px 0}

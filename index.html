@@ -56,7 +56,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td{padding:5px 3px;bord
 <div id="hasil"><span class="mu">Menunggu scan...</span></div>
 
 <section id="s-scan" class="card">
-<div class="scanbox"><svg viewBox="0 0 96 64" fill="currentColor" aria-hidden="true"><rect x="4" y="6" width="4" height="52"/><rect x="12" y="6" width="8" height="52"/><rect x="24" y="6" width="4" height="52"/><rect x="32" y="6" width="12" height="52"/><rect x="48" y="6" width="4" height="52"/><rect x="56" y="6" width="8" height="52"/><rect x="68" y="6" width="4" height="52"/><rect x="76" y="6" width="12" height="52"/></svg>
+<div class="scanbox">
 <div class="scantx">Tempelkan kartu pelajar pada pembaca</div><div class="mu" id="modeLbl">Mode: otomatis (sesuai jam)</div></div>
 <input id="scan" inputmode="none" autocomplete="off" tabindex="-1" aria-hidden="true">
 </section>
@@ -131,6 +131,7 @@ async function sync(full){
   off=r.now-Date.now();
   const s2=r.sudah;Q.forEach(i=>{const p=M[i.kode];if(p){const k=p.nis+'|'+i.jenis;if(!s2[k]&&sudah[k])s2[k]=sudah[k]}});sudah=s2;
   D=D||{};D.st=r.st;D.aktif=r.aktif;D.tgl=r.tgl;
+  if(typeof dmTampil==='function')dmTampil();
   if(full){D.orang=r.orang;
     if(r.st.metode_aktif.split(',').includes('wajah')){try{D.bio=(await api('bio_data')).v}catch(e){}}
     await kv('D',D);buildMap()}
@@ -223,7 +224,7 @@ function drawTabs(){
   if(m.includes('barcode'))T.push(['scan','Scan Kartu']);
   if(m.includes('barcode')||m.includes('qr'))T.push(['cam','Kamera']);
   if(m.includes('wajah'))T.push(['wajah','Wajah']);
-  if(m.includes('nis')&&me&&['Admin','Petugas'].includes(me.peran))T.push(['nis','Input NIS 🔒']);
+  if(m.includes('nis')&&me&&['Admin','Petugas'].includes(me.peran))T.push(['nis','Input NIS'+(kunciMati()?'':' 🔒')]);
   T.push(['belum','Belum presensi <span id="bCnt" class="pill wn" style="padding:0 8px"></span>']);
   $('#tabs').innerHTML=T.map(t=>'<button data-t="'+t[0]+'">'+t[1]+'</button>').join('')||'<span class="mu">Tidak ada metode aktif. Atur di Admin.</span>';
   if(T.length)go(T.some(t=>t[0]===tab)?tab:T[0][0]);
@@ -365,11 +366,13 @@ setInterval(()=>{if(tab==='belum'&&tok)loadBelum(true)},60000);
 
 /* ===== Input NIS manual: khusus petugas, dengan verifikasi password dan konfirmasi identitas ===== */
 let manualSampai=0,manualT=null;
-const manualBuka=()=>Date.now()<manualSampai;
+const kunciMati=()=>!!(D&&D.st&&D.st.kunci_petugas==='tidak'); // diatur admin di Pengaturan
+const manualBuka=()=>kunciMati()||Date.now()<manualSampai;
 const bukaBelum=()=>!!(me&&me.peran==='Wali')||manualBuka(); // wali kelas hanya melihat kelasnya sendiri, tanpa kunci
 function dmTampil(){
   const b=manualBuka(),bb=bukaBelum();$('#dmL').style.display=b?'none':'block';$('#dmU').style.display=b?'block':'none';$('#bL').style.display=bb?'none':'block';$('#bU').style.display=bb?'block':'none';
-  if(b){const s=Math.max(0,Math.round((manualSampai-Date.now())/1000));$('#dmS').textContent='Terbuka. Terkunci otomatis dalam '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+  if(b){if(kunciMati())$('#dmS').textContent='Akses petugas terbuka (kunci password dinonaktifkan di Pengaturan).';else{const s=Math.max(0,Math.round((manualSampai-Date.now())/1000));$('#dmS').textContent='Terbuka. Terkunci otomatis dalam '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}}
+  $('#dmX2').style.display=$('#bKunci').style.display=kunciMati()?'none':'';
 }
 function dmKunci(){manualSampai=0;clearInterval(manualT);api('kunci_manual').catch(()=>{});dmTampil()}
 $('#dmX1').onclick=()=>go('scan');

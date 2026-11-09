@@ -246,7 +246,9 @@ async function pSet(){
   ${field('sL','Hari libur (yyyy-mm-dd, pisah koma)',s.hari_libur)}
   ${field('sNm','Nama sekolah (dipakai di pesan ke orang tua)',s.nama_sekolah)}${field('sEm','Email penerima ringkasan harian (pisah koma; email pemilik skrip otomatis menerima)',s.email_ringkasan)}<div class="row">${field('sT','Tahun ajaran',s.tahun_ajaran)}<div><label>Semester</label><select id="sS">${opts(['Ganjil','Genap'],s.semester)}</select></div></div>
   <label>Metode presensi yang diaktifkan</label><div class="chk col">${Object.keys(M).map(k=>`<label><input type="checkbox" class="mt" value="${k}" ${s.metode_aktif.split(',').includes(k)?'checked':''} style="width:auto;margin:0 4px 0 8px">${M[k]}</label>`).join('')}</div><br>
-  <label><input type="checkbox" id="sN" ${s.notif_ortu==='ya'?'checked':''} style="width:auto;margin:0 6px 0 0">Kirim notifikasi email ke orang tua</label><br><br><button class="b" id="sOk">Simpan pengaturan</button></div>
+  <label><input type="checkbox" id="sN" ${s.notif_ortu==='ya'?'checked':''} style="width:auto;margin:0 6px 0 0">Kirim notifikasi email ke orang tua</label><br>
+  <label style="display:block;margin-top:8px"><input type="checkbox" id="sKu" ${s.kunci_petugas!=='tidak'?'checked':''} style="width:auto;margin:0 6px 0 0">Kunci tab Input NIS dan Belum presensi dengan password petugas</label>
+  <div class="mu">Jika dimatikan, petugas langsung bisa membuka kedua tab tanpa password (antrean lebih cepat). Konfirmasi identitas siswa tetap diminta. Pastikan petugas mengawasi layar agar siswa tidak mengetik NIS sendiri.</div><br><button class="b" id="sOk">Simpan pengaturan</button></div>
   <div class="card"><b>Jadwal khusus</b><div class="mu">Jam umum di atas berlaku setiap hari. Di sini Anda bisa memberi jam berbeda untuk hari tertentu (mis. Jumat) atau tanggal tertentu (mis. ujian, bulan puasa). Tanggal tertentu mengalahkan hari tertentu.</div><br>
   <div class="row"><div><label>Berlaku untuk</label><select id="jJ"><option value="Hari">Hari tertentu</option><option value="Tanggal">Tanggal tertentu</option></select></div>
   <div id="jKh"><label>Hari</label><select id="jH">${H.map((h,i)=>`<option value="${i+1}">${h}</option>`).join('')}</select></div>
@@ -260,7 +262,7 @@ async function pSet(){
   
   $('#sOk').onclick=run(async()=>{
     const ck=c=>[...document.querySelectorAll('.'+c+':checked')].map(x=>x.value).join(',');
-    await api('pengaturan_set',{v:{jam_mulai:$('#sM').value,jam_batas_terlambat:$('#sB').value,jam_selesai:$('#sE').value,jam_mulai_pulang:$('#sP').value,hari_aktif:ck('hr'),hari_libur:$('#sL').value.replace(/\s/g,''),tahun_ajaran:$('#sT').value,nama_sekolah:$('#sNm').value,email_ringkasan:$('#sEm').value.replace(/\s/g,''),semester:$('#sS').value,metode_aktif:ck('mt'),notif_ortu:$('#sN').checked?'ya':'tidak'}});
+    await api('pengaturan_set',{v:{jam_mulai:$('#sM').value,jam_batas_terlambat:$('#sB').value,jam_selesai:$('#sE').value,jam_mulai_pulang:$('#sP').value,hari_aktif:ck('hr'),hari_libur:$('#sL').value.replace(/\s/g,''),tahun_ajaran:$('#sT').value,nama_sekolah:$('#sNm').value,email_ringkasan:$('#sEm').value.replace(/\s/g,''),semester:$('#sS').value,metode_aktif:ck('mt'),notif_ortu:$('#sN').checked?'ya':'tidak',kunci_petugas:$('#sKu').checked?'ya':'tidak'}});
     toast('Pengaturan tersimpan');
   });
 }
