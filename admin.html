@@ -33,6 +33,7 @@ dialog{border:1px solid var(--bd);border-radius:14px;background:var(--card);colo
 #login{max-width:380px;margin:12vh auto}
 .btns{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .chk{display:flex;flex-wrap:wrap;gap:6px 16px;margin:4px 0}.chk.col{flex-direction:column;gap:6px}.chk label{white-space:nowrap;display:flex;align-items:center;font-size:14px;color:var(--tx)}.chk input{width:auto;margin:0 6px 0 0}
+.chk.col label{white-space:normal;align-items:flex-start}
 @media(max-width:640px){
  table.stk tr:first-child{display:none}
  table.stk tr{display:block;padding:8px 0;border-bottom:1px solid var(--bd)}
@@ -244,7 +245,12 @@ async function pSet(){
   V(`<div class="card"><b>Jam presensi</b><div class="row">${field('sM','Jam mulai',s.jam_mulai,'time')}${field('sB','Batas terlambat',s.jam_batas_terlambat,'time')}${field('sE','Jam berakhir',s.jam_selesai,'time')}${field('sP','Mulai jam pulang',s.jam_mulai_pulang,'time')}</div>
   <label>Hari aktif sekolah</label><div class="chk">${H.map((h,i)=>`<label><input type="checkbox" class="hr" value="${i+1}" ${s.hari_aktif.split(',').includes(String(i+1))?'checked':''} style="width:auto;margin:0 4px 0 8px">${h}</label>`).join('')}</div><br>
   ${field('sL','Hari libur (yyyy-mm-dd, pisah koma)',s.hari_libur)}
-  ${field('sNm','Nama sekolah (dipakai di pesan ke orang tua)',s.nama_sekolah)}${field('sEm','Email penerima ringkasan harian (pisah koma; email pemilik skrip otomatis menerima)',s.email_ringkasan)}<div class="row">${field('sT','Tahun ajaran',s.tahun_ajaran)}<div><label>Semester</label><select id="sS">${opts(['Ganjil','Genap'],s.semester)}</select></div></div>
+  ${field('sNm','Nama sekolah (dipakai di pesan ke orang tua)',s.nama_sekolah)}
+  <div class="card" style="box-shadow:none;margin:6px 0"><b>Teks pesan ke orang tua (email dan WhatsApp)</b>
+  <div class="mu">Penanda yang bisa dipakai: <b>{nama}</b> <b>{kelas}</b> <b>{tanggal}</b> <b>{jam}</b> <b>{sekolah}</b>. {jam} hanya terisi pada pesan terlambat.</div>
+  <label>Pesan untuk siswa TERLAMBAT</label><textarea id="sPT" rows="4">${esc(s.pesan_terlambat)}</textarea><div class="mu" id="vPT"></div>
+  <label>Pesan untuk siswa BELUM PRESENSI / tidak hadir</label><textarea id="sPB" rows="4">${esc(s.pesan_belum)}</textarea><div class="mu" id="vPB"></div>
+  <button class="s" id="sPD" type="button">Kembalikan teks bawaan</button></div>${field('sEm','Email penerima ringkasan harian (pisah koma; email pemilik skrip otomatis menerima)',s.email_ringkasan)}<div class="row">${field('sT','Tahun ajaran',s.tahun_ajaran)}<div><label>Semester</label><select id="sS">${opts(['Ganjil','Genap'],s.semester)}</select></div></div>
   <label>Metode presensi yang diaktifkan</label><div class="chk col">${Object.keys(M).map(k=>`<label><input type="checkbox" class="mt" value="${k}" ${s.metode_aktif.split(',').includes(k)?'checked':''} style="width:auto;margin:0 4px 0 8px">${M[k]}</label>`).join('')}</div><br>
   <label><input type="checkbox" id="sN" ${s.notif_ortu==='ya'?'checked':''} style="width:auto;margin:0 6px 0 0">Kirim notifikasi email ke orang tua</label><br>
   <label style="display:block;margin-top:8px"><input type="checkbox" id="sKu" ${s.kunci_petugas!=='tidak'?'checked':''} style="width:auto;margin:0 6px 0 0">Kunci tab Input NIS dan Belum presensi dengan password petugas</label>
@@ -260,9 +266,14 @@ async function pSet(){
   $('#jOk').onclick=run(async()=>{const h=$('#jJ').value==='Hari';await api('jadwal_save',{v:{Jenis:$('#jJ').value,Kunci:h?$('#jH').value:$('#jT').value,Mulai:$('#jM').value,Batas:$('#jB').value,Selesai:$('#jS').value,Pulang:$('#jP').value,Keterangan:$('#jK').value}});toast('Jadwal khusus tersimpan');pSet()});
   $('#tJ').onclick=run(async e=>{if(e.target.dataset.jj){if(!confirm('Hapus jadwal khusus ini?'))return;await api('jadwal_hapus',{jenis:e.target.dataset.jj,kunci:e.target.dataset.jk});toast('Dihapus');pSet()}});
   
+  const PD={t:'Yth. Orang tua/wali {nama} (kelas {kelas}). Kami informasikan bahwa {nama} tercatat terlambat tiba di sekolah pada {tanggal} pukul {jam}. Terima kasih. {sekolah}',b:'Yth. Orang tua/wali {nama} (kelas {kelas}). Kami informasikan bahwa {nama} belum tercatat hadir di sekolah pada {tanggal}. Mohon konfirmasi bila berhalangan hadir (izin/sakit). Terima kasih. {sekolah}'};
+  const pv=()=>{const o={nama:'Budi Santoso',kelas:'7A',tanggal:'02-11-2026',jam:'07:25',sekolah:$('#sNm').value};const f=x=>x.replace(/\{(\w+)\}/g,(m,k)=>k in o?o[k]:m);
+    $('#vPT').textContent='Contoh: '+f($('#sPT').value);$('#vPB').textContent='Contoh: '+f($('#sPB').value)};
+  $('#sPT').oninput=$('#sPB').oninput=$('#sNm').oninput=pv;pv();
+  $('#sPD').onclick=()=>{$('#sPT').value=PD.t;$('#sPB').value=PD.b;pv()};
   $('#sOk').onclick=run(async()=>{
     const ck=c=>[...document.querySelectorAll('.'+c+':checked')].map(x=>x.value).join(',');
-    await api('pengaturan_set',{v:{jam_mulai:$('#sM').value,jam_batas_terlambat:$('#sB').value,jam_selesai:$('#sE').value,jam_mulai_pulang:$('#sP').value,hari_aktif:ck('hr'),hari_libur:$('#sL').value.replace(/\s/g,''),tahun_ajaran:$('#sT').value,nama_sekolah:$('#sNm').value,email_ringkasan:$('#sEm').value.replace(/\s/g,''),semester:$('#sS').value,metode_aktif:ck('mt'),notif_ortu:$('#sN').checked?'ya':'tidak',kunci_petugas:$('#sKu').checked?'ya':'tidak'}});
+    await api('pengaturan_set',{v:{jam_mulai:$('#sM').value,jam_batas_terlambat:$('#sB').value,jam_selesai:$('#sE').value,jam_mulai_pulang:$('#sP').value,hari_aktif:ck('hr'),hari_libur:$('#sL').value.replace(/\s/g,''),tahun_ajaran:$('#sT').value,nama_sekolah:$('#sNm').value,pesan_terlambat:$('#sPT').value,pesan_belum:$('#sPB').value,email_ringkasan:$('#sEm').value.replace(/\s/g,''),semester:$('#sS').value,metode_aktif:ck('mt'),notif_ortu:$('#sN').checked?'ya':'tidak',kunci_petugas:$('#sKu').checked?'ya':'tidak'}});
     toast('Pengaturan tersimpan');
   });
 }

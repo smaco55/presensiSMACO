@@ -203,7 +203,7 @@ async function flush(){
       if(x.err){delete sudah[p.nis+'|'+items[i].jenis];tampil('err',(x.nama||x.kode),'Ditolak server: '+x.err,p)}
       else if(x.dup)sudah[p.nis+'|'+x.jenis]=x.jam+'|';
     });
-    await kv('Q',Q);fl=false;ringkas();if(Q.length)flush();
+    await kv('Q',Q);fl=false;ringkas();if(Q.length)flush();else if(tab==='belum')loadBelum(true);
   }catch(e){items.forEach(i=>i.q=1);kv('Q',Q);fl=false}
 }
 setInterval(flush,8000);
@@ -324,6 +324,7 @@ async function faceTick(){
 
 /* ===== Belum presensi + catat izin/sakit oleh petugas ===== */
 let B=null;
+const isiPesan=(tpl,o)=>String(tpl).replace(/\{(\w+)\}/g,(m,k)=>k in o?o[k]:m);
 async function loadBelum(quiet){
   if(!bukaBelum())return;
   try{B=await api('belum_hadir');tampilBelum()}
@@ -340,7 +341,7 @@ function tampilBelum(offline){
   $('#bInfo').textContent=(B.aktif?'':'Bukan hari aktif • ')+'Hadir '+B.hadir+' • Izin/sakit '+B.izin+' • Belum '+L.length+' dari '+B.total;
   $('#bWkt').textContent=(offline?'(data lama) ':'')+'Diperbarui '+jkt();
   $('#bList').innerHTML=F.map(s=>{
-    const no=String(s.wa||'').replace(/\D/g,''),psn=encodeURIComponent('Yth. Orang tua/wali '+s.nama+' (kelas '+s.kelas+'). Anak Bapak/Ibu belum tercatat hadir di sekolah hari ini. Mohon konfirmasi kehadirannya. Terima kasih. '+TEMA.nama);
+    const no=String(s.wa||'').replace(/\D/g,''),psn=encodeURIComponent(isiPesan((D&&D.st&&D.st.pesan_belum)||'Yth. Orang tua/wali {nama} (kelas {kelas}). {nama} belum tercatat hadir pada {tanggal}. Mohon konfirmasi. {sekolah}',{nama:s.nama,kelas:s.kelas,tanggal:String(B.tgl||'').split('-').reverse().join('-'),jam:'',sekolah:TEMA.nama}));
     return '<div class="brow"><div><b>'+esc(s.nama)+'</b><div class="mu">Kelas '+esc(s.kelas)+' • NIS '+esc(s.nis)+(no?'':' • tanpa nomor orang tua')+'</div></div><div class="bact">'+
       (no?'<a class="s" target="_blank" rel="noopener" href="https://wa.me/'+no+'?text='+psn+'">WA</a><a class="s" href="tel:+'+no+'">Telepon</a>':'')+
       '<button class="s" data-i="'+esc(s.nis)+'" data-j="Sakit">Sakit</button><button class="s" data-i="'+esc(s.nis)+'" data-j="Izin">Izin</button><button class="s" data-i="'+esc(s.nis)+'" data-m="Kartu bermasalah">Kartu bermasalah</button><button class="s" data-i="'+esc(s.nis)+'" data-m="Lupa bawa kartu">Lupa bawa kartu</button></div></div>';
@@ -399,20 +400,13 @@ $('#dmN').onkeydown=e=>{
 $('#dmNo').onclick=()=>{dmReset();$('#dmN').focus()};
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&tab==='nis'&&dmP){dmReset();$('#dmN').focus()}});
 $('#mode').onchange=()=>{const v=$('#mode').value;$('#modeLbl').textContent='Mode: '+(v==='auto'?'otomatis (sesuai jam)':v==='Masuk'?'masuk saja':'pulang saja')};
-$('#dmOk').onclick=async()=>{
+$('#dmOk').onclick=()=>{
   if(!dmP)return;
   if(Date.now()-dmAt<400)return; // cegah Enter ganda tanpa sengaja langsung menyetujui
   if(!manualBuka()){dmTampil();return alert('Akses manual sudah terkunci. Buka lagi dengan password.')}
-  const m=$('#mode').value,h=jkt(),jenis=m==='auto'?(h>=D.st.jam_mulai_pulang?'Pulang':'Masuk'):m,p=dmP;
-  $('#dmOk').disabled=true;
-  try{
-    const r=await api('hadir',{items:[{kode:p.nis,metode:'nis',jenis,ts:Date.now()+off,q:0,konf:true}]}),x=r.res[0];
-    if(x.err){tampil('err',p.nama,'Ditolak: '+x.err,p)}
-    else if(x.dup){sudah[p.nis+'|'+x.jenis]=x.jam+'|';tampil('wn',p.nama,'Sudah presensi '+x.jenis.toLowerCase()+' pukul '+x.jam,p)}
-    else{sudah[p.nis+'|'+x.jenis]=x.jam+'|'+x.status;rec.unshift({h:x.jam,n:p.nama,k:p.kelas,j:x.jenis,s:x.status});rec=rec.slice(0,10);ringkas();
-      tampil(x.status==='Terlambat'?'wn':'ok',p.nama,p.kelas+' • '+x.jenis+' • '+x.status+' • '+x.jam+' • manual',p);say(p.nama+(x.status==='Terlambat'?', terlambat':', hadir'))}
-    dmReset();$('#dmN').focus();
-  }catch(e){$('#dmOk').disabled=false;alert('Gagal mencatat (input manual membutuhkan internet): '+e.message)}
+  const m=$('#mode').value,h=jkt(),jenis=m==='auto'?(h>=D.st.jam_mulai_pulang?'Pulang':'Masuk'):m;
+  if(catatManual(dmP,'nis',jenis,'')===false)return;
+  dmReset();$('#dmN').focus();
 };
 
 /* Kartu bermasalah / lupa bawa kartu: siswa hadir tetapi tidak dapat scan. Dicatat petugas (area terbuka) setelah konfirmasi identitas. */
@@ -434,20 +428,29 @@ function tanyaKartu(s,ket){
   $('#dk').showModal();$('#dkOk').focus();
 }
 $('#dkX').onclick=()=>$('#dk').close();
-$('#dkOk').onclick=async()=>{
+$('#dkOk').onclick=()=>{
   if(!kP||Date.now()-kAt<400)return; // cegah Enter ganda langsung menyetujui
-  const p=kP;$('#dkOk').disabled=true;
-  try{
-    const r=await api('hadir',{items:[{kode:p.nis,metode:'tanpa_kartu',ket:kKet,jenis:'Masuk',ts:Date.now()+off,q:0,konf:true}]}),x=r.res[0];
-    $('#dk').close();
-    if(x.err)tampil('err',p.nama,'Ditolak: '+x.err,p);
-    else if(x.dup){sudah[p.nis+'|Masuk']=x.jam+'|';tampil('wn',p.nama,'Sudah presensi pukul '+x.jam,p)}
-    else{sudah[p.nis+'|Masuk']=x.jam+'|'+x.status;rec.unshift({h:x.jam,n:p.nama,k:p.kelas,j:'Masuk',s:x.status});rec=rec.slice(0,10);ringkas();
-      tampil(x.status==='Terlambat'?'wn':'ok',p.nama,p.kelas+' • Masuk • '+x.status+' • '+x.jam+' • '+kKet,p);say(p.nama+(x.status==='Terlambat'?', terlambat':', hadir'))}
-    tampilBelum();loadBelum(true);
-  }catch(e){alert('Gagal mencatat (membutuhkan internet): '+e.message)}
-  $('#dkOk').disabled=false;
+  if(catatManual(kP,'tanpa_kartu','Masuk',kKet)===false)return;
+  $('#dk').close();tampilBelum();
 };
+/* Pencatatan manual (input NIS / kartu bermasalah / lupa bawa kartu): hasil tampil seketika, dikirim di latar belakang lewat antrean
+   (sama seperti scan kartu). Bila server menolak, pesan kesalahan tampil dan status dikembalikan. */
+function catatManual(p,metode,jenis,ket){
+  if(!navigator.onLine){alert('Pencatatan manual membutuhkan internet.');return false}
+  const h=jkt();
+  if(!D.aktif){tampil('err',p.nama,'Bukan hari aktif sekolah',p);return true}
+  if(jenis==='Masuk'&&h<D.st.jam_mulai){tampil('err',p.nama,'Presensi belum dibuka (mulai '+D.st.jam_mulai+')',p);return true}
+  if(jenis==='Masuk'&&h>D.st.jam_selesai&&me.peran!=='Admin'){tampil('err',p.nama,'Presensi sudah ditutup',p);return true}
+  const k=p.nis+'|'+jenis;
+  if(sudah[k]){say(p.nama+' sudah presensi');tampil('wn',p.nama,'Sudah presensi '+jenis.toLowerCase()+' pukul '+sudah[k].split('|')[0],p);return true}
+  const st=jenis==='Pulang'?'Pulang':(h<=D.st.jam_batas_terlambat?'Tepat waktu':'Terlambat');
+  sudah[k]=h+'|'+st;
+  Q.push({kode:p.nis,metode,jenis,ts:Date.now()+off,q:0,ket,konf:true});kv('Q',Q);
+  rec.unshift({h,n:p.nama,k:p.kelas,j:jenis,s:st});rec=rec.slice(0,10);ringkas();
+  tampil(st==='Terlambat'?'wn':'ok',p.nama,p.kelas+' • '+jenis+' • '+st+' • '+h+' • '+(ket||'manual'),p);
+  say(p.nama+(st==='Terlambat'?', terlambat':jenis==='Pulang'?', pulang':', hadir'));
+  flush();return true;
+}
 
 /* identitas sekolah + layar siaga */
 $('#lb').innerHTML=brandLogo(84)+'<h1>'+esc(TEMA.nama)+'</h1><div class="ln"></div><p>'+esc(TEMA.slogan)+'</p>';
