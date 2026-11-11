@@ -91,9 +91,10 @@ async function keluar(silent){
 }
 
 /* Kerangka */
-const PG={dash:['Dashboard',pDash],siswa:['Siswa',pSiswa],guru:['Guru',pGuru],kelas:['Kelas',pKelas],petugas:['Petugas',pPetugas],set:['Pengaturan',pSet],izin:['Izin/Sakit',pIzin],lap:['Laporan',pLap],notif:['Notifikasi',pNotif],dev:['Perangkat',pDev],log:['Log',pLog]};
+const PG={dash:['Dashboard',pDash],siswa:['Siswa',pSiswa],guru:['Guru',pGuru],kelas:['Kelas',pKelas],petugas:['Petugas',pPetugas],set:['Pengaturan',pSet],izin:['Izin/Sakit',pIzin],kp:['Kelas Pilihan',pKP],pk:['Presensi Kelas',pPK],lap:['Laporan',pLap],notif:['Notifikasi',pNotif],dev:['Perangkat',pDev],log:['Log',pLog]};
 function drawApp(){
-  const ks=me.peran==='Admin'?Object.keys(PG):me.peran==='Wali'?['dash','izin','lap']:['dash'];
+  if(me.peran==='Guru'){location.replace('kelas.html');return} // guru memakai halaman Presensi Kelas
+  const ks=me.peran==='Admin'?Object.keys(PG):me.peran==='Wali'?['dash','izin','pk','lap']:['dash'];
   $('#app').innerHTML=`<header class="hd"><div class="brand">${brandLogo(46)}<div><div class="nm">${esc(TEMA.nama)}</div><div class="sl">${esc(TEMA.slogan)}</div></div></div><div class="btns"><span class="mu">${esc(me.nama)} · ${esc(me.peran)}${me.kelas?' '+esc(me.kelas):''}</span><a class="s" href="index.html" style="text-decoration:none">Halaman Presensi</a> <button class="s" id="pw">Ganti password</button> <button class="s" id="out">Keluar</button></div></header>
   <nav>${ks.map(k=>`<button data-p="${k}">${PG[k][0]}</button>`).join('')}</nav><div id="view"></div>`;
   $('#out').onclick=()=>keluar();
@@ -208,10 +209,19 @@ async function pGuru(){
   V(`<div class="card"><b>Tambah / ubah guru</b><div class="row">${field('gN','NIP')}${field('gA','Nama')}${field('gK','Kode barcode (kosong = NIP)')}${field('gW','WA')}</div>
   <label>Status</label><select id="gS">${opts(['Aktif','Nonaktif'])}</select><button class="b" id="gOk">Simpan</button></div>
   <div class="card"><b>Impor guru</b><div class="mu">Tempel dari Excel, kolom: NIP, Nama, Kode barcode, WA (satu baris per guru).</div><textarea id="gI" rows="4"></textarea><button class="b" id="gImp">Impor</button><div class="mu" id="gH"></div></div>
+  <div class="card"><b>Akun guru untuk presensi kelas</b><div class="mu">Membuat akun (username = NIP, peran Guru) untuk semua guru aktif yang belum punya akun, dengan password acak. Password hanya ditampilkan SEKALI lewat berkas yang diunduh. Bagikan ke tiap guru dan minta segera diganti.</div><br><button class="b" id="gAkun">Buat akun semua guru</button></div>
   <div class="card wrap"><b>Daftar guru</b> <span class="mu">${L.length} orang</span><table class="stk" id="tg"><tr><th>NIP</th><th>Nama</th><th>Kode</th><th>Status</th><th></th></tr>${L.map((g,i)=>`<tr><td>${esc(g.NIP)}</td><td>${esc(g.Nama)}</td><td>${esc(g.Kode_Barcode)}</td><td>${esc(g.Status)}</td><td><button class="s" data-i="${i}">Edit</button></td></tr>`).join('')}</table></div>`);
   let baru=true;
   $('#tg').onclick=e=>{if(e.target.dataset.i){const g=L[e.target.dataset.i];$('#gN').value=g.NIP;$('#gN').readOnly=true;$('#gA').value=g.Nama;$('#gK').value=g.Kode_Barcode;$('#gW').value=g.WA;$('#gS').value=g.Status;baru=false;scrollTo(0,0)}};
   $('#gOk').onclick=run(async()=>{await api('guru_save',{baru,v:{NIP:$('#gN').value,Nama:$('#gA').value,Kode_Barcode:$('#gK').value,WA:$('#gW').value,Status:$('#gS').value}});toast('Tersimpan');pGuru()});
+  $('#gAkun').onclick=run(async()=>{
+    if(!confirm('Buat akun untuk semua guru aktif yang belum punya akun?'))return;
+    const r=await api('guru_akun_massal');
+    if(!r.v.length)return toast('Tidak ada guru baru yang perlu dibuatkan akun ('+r.lewat+' dilewati)');
+    const csv='Username,Nama,Password\n'+r.v.map(x=>'"'+x.username+'","'+x.nama.replace(/"/g,'')+'","'+x.password+'"').join('\n');
+    const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));l.download='akun-guru.csv';l.click();
+    toast(r.v.length+' akun dibuat. Simpan berkas akun-guru.csv, password tidak ditampilkan lagi.');
+  });
   $('#gImp').onclick=run(async()=>{
     const rows=$('#gI').value.split('\n').map(l=>l.split(/\t|;/).map(x=>x.trim())).filter(r=>r[0]&&r[1]&&r[0].toLowerCase()!=='nip');
     if(!rows.length)return toast('Belum ada data',1);
@@ -232,11 +242,11 @@ async function pKelas(){
 /* Petugas */
 async function pPetugas(){
   const [pl,kl]=await Promise.all([api('petugas_list'),api('kelas_list')]),L=pl.v;KL=kl.v;
-  V(`<div class="card"><b>Tambah / ubah akun</b><div class="row">${field('uU','Username')}${field('uN','Nama')}${field('uP','Password (min 8; kosong = tidak diubah)','','password')}</div>
-  <div class="row"><div><label>Peran</label><select id="uR">${opts(['Petugas','Wali','Admin'])}</select></div><div><label>Kelas (khusus Wali)</label><select id="uK"><option value="">-</option>${KL.map(k=>`<option>${esc(k.ID_Kelas)}</option>`).join('')}</select></div><div><label>Status</label><select id="uS">${opts(['Aktif','Nonaktif'])}</select></div></div><button class="b" id="uOk">Simpan</button></div>
-  <div class="card wrap"><table class="stk" id="tu"><tr><th>Username</th><th>Nama</th><th>Peran / Kelas</th><th>Status</th><th>Login terakhir</th><th></th></tr>${L.map((p,i)=>`<tr><td>${esc(p.Username)}</td><td>${esc(p.Nama)}</td><td>${esc(p.Peran)}${p.Kelas?' '+esc(p.Kelas):''}</td><td>${esc(p.Status)}</td><td>${esc(p.Login_Terakhir)}</td><td><button class="s" data-i="${i}">Edit</button></td></tr>`).join('')}</table></div>`);
-  $('#tu').onclick=e=>{if(e.target.dataset.i){const p=L[e.target.dataset.i];$('#uU').value=p.Username;$('#uN').value=p.Nama;$('#uR').value=p.Peran;$('#uK').value=p.Kelas||'';$('#uS').value=p.Status;scrollTo(0,0)}};
-  $('#uOk').onclick=run(async()=>{await api('petugas_save',{v:{Username:$('#uU').value,Nama:$('#uN').value,Password:$('#uP').value,Peran:$('#uR').value,Kelas:$('#uK').value,Status:$('#uS').value}});toast('Tersimpan');pPetugas()});
+  V(`<div class="card"><b>Tambah / ubah akun</b><div class="row">${field('uU','Username')}${field('uN','Nama')}${field('uP','Password (min 8; kosong = tidak diubah)','','password')}${field('uNip','NIP (khusus Guru; harus ada di menu Guru)')}</div>
+  <div class="row"><div><label>Peran</label><select id="uR">${opts(['Petugas','Wali','Guru','Admin'])}</select></div><div><label>Kelas (khusus Wali)</label><select id="uK"><option value="">-</option>${KL.map(k=>`<option>${esc(k.ID_Kelas)}</option>`).join('')}</select></div><div><label>Status</label><select id="uS">${opts(['Aktif','Nonaktif'])}</select></div></div><button class="b" id="uOk">Simpan</button></div>
+  <div class="card wrap"><table class="stk" id="tu"><tr><th>Username</th><th>Nama</th><th>Peran / Kelas</th><th>Status</th><th>Login terakhir</th><th></th></tr>${L.map((p,i)=>`<tr><td>${esc(p.Username)}</td><td>${esc(p.Nama)}</td><td>${esc(p.Peran)}${p.Kelas?' '+esc(p.Kelas):''}${p.NIP?' '+esc(p.NIP):''}</td><td>${esc(p.Status)}</td><td>${esc(p.Login_Terakhir)}</td><td><button class="s" data-i="${i}">Edit</button></td></tr>`).join('')}</table></div>`);
+  $('#tu').onclick=e=>{if(e.target.dataset.i){const p=L[e.target.dataset.i];$('#uU').value=p.Username;$('#uN').value=p.Nama;$('#uR').value=p.Peran;$('#uK').value=p.Kelas||'';$('#uNip').value=p.NIP||'';$('#uS').value=p.Status;scrollTo(0,0)}};
+  $('#uOk').onclick=run(async()=>{await api('petugas_save',{v:{Username:$('#uU').value,Nama:$('#uN').value,Password:$('#uP').value,Peran:$('#uR').value,Kelas:$('#uK').value,NIP:$('#uNip').value,Status:$('#uS').value}});toast('Tersimpan');pPetugas()});
 }
 
 /* Pengaturan */
@@ -303,6 +313,61 @@ async function pIzin(){
     toast(r.n+' hari tercatat'+(r.lewat?', '+r.lewat+' dilewati':''));$('#iT').value='';muatDaftar();
   });
   await muatSiswa();await muatDaftar();
+}
+
+/* Kelas mapel pilihan */
+let KPR=[];
+async function pKP(){
+  const L=(await api('kelompok_list')).v;
+  V(`<div class="card"><b>Impor kelas mapel pilihan</b>
+  <div class="mu">Satu baris per siswa per kelompok. Kolom berurutan: Kelompok, Mapel, NIP Guru, NIS. Mengimpor ulang suatu kelompok MENGGANTI seluruh anggotanya; kelompok lain tidak disentuh. Guru harus sudah ada di menu Guru, siswa harus sudah ada di menu Siswa.</div><br>
+  <button class="s" id="kTpl">Unduh template</button><br><br><label>File Excel (.xlsx) atau CSV</label><input id="kF" type="file" accept=".xlsx,.xls,.csv">
+  <label>Atau tempel dari Excel</label><textarea id="kT" rows="4"></textarea><div class="mu" id="kPv"></div><button class="b" id="kGo">Impor</button><div class="mu" id="kH"></div></div>
+  <div class="card wrap"><b>Daftar kelompok</b> <span class="mu">${L.length} kelompok</span><table class="stk" id="tKP"><tr><th>Kelompok</th><th>Mapel</th><th>Guru</th><th>Anggota</th><th>Status</th><th></th></tr>${L.map(k=>`<tr><td>${esc(k.Nama)}</td><td>${esc(k.Mapel)}</td><td>${esc(k.Guru||k.NIP_Guru)}</td><td>${k.Anggota}</td><td>${esc(k.Status)}</td><td><button class="s" data-i="${esc(k.ID)}" data-s="${k.Status==='Aktif'?'Nonaktif':'Aktif'}">${k.Status==='Aktif'?'Nonaktifkan':'Aktifkan'}</button></td></tr>`).join('')||'<tr><td colspan="6" class="mu">Belum ada kelompok.</td></tr>'}</table></div>`);
+  KPR=[];
+  const set=r=>{KPR=r.filter(x=>x[0]&&String(x[0]).toLowerCase()!=='kelompok').map(x=>x.map(c=>String(c??'').trim()));$('#kPv').textContent=KPR.length+' baris siap diimpor'};
+  $('#kTpl').onclick=()=>{const l=document.createElement('a');l.href=URL.createObjectURL(new Blob(['Kelompok,Mapel,NIP Guru,NIS\nKimia,Kimia,G100,12345\nKimia,Kimia,G100,12346\nBahasa Jerman,Bahasa,G200,12347\n'],{type:'text/csv'}));l.download='template-kelas-pilihan.csv';l.click()};
+  $('#kF').onchange=run(async e=>{const f=e.target.files[0];if(!f)return;const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});set(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false}))});
+  $('#kT').oninput=e=>set(e.target.value.split('\n').map(l=>l.split(/\t|;/)));
+  $('#kGo').onclick=run(async()=>{
+    if(!KPR.length)return toast('Belum ada data',1);
+    $('#kH').textContent='Mengirim '+KPR.length+' baris...';
+    const r=await api('kelompok_import',{rows:KPR});
+    $('#kH').innerHTML=`Selesai: ${r.baru} kelompok baru, ${r.update} diperbarui, ${r.anggota} anggota tersimpan.<br>${r.err.map(esc).join('<br>')}`;pKP.skip=1;
+  });
+  $('#tKP').onclick=run(async e=>{if(e.target.dataset.i){await api('kelompok_status',{id:e.target.dataset.i,status:e.target.dataset.s});toast('Diperbarui');pKP()}});
+}
+
+/* Laporan presensi kelas */
+let SSR=[],RKR=[];
+async function pPK(){
+  const t=new Date().toLocaleDateString('sv-SE');
+  V(`<div class="card"><b>Presensi kelas (per pelajaran)</b>
+  <div class="row">${field('qD','Dari',t,'date')}${field('qS','Sampai',t,'date')}${field('qC','Cari kelas / mapel / guru')}</div>
+  <button class="b" id="qGo">Tampilkan sesi</button> <button class="s" id="qXl">Excel</button>
+  <div class="mu" id="qI"></div><div class="wrap"><table class="stk" id="tSs"></table></div></div>
+  <div class="card"><b>Rekap tidak hadir per siswa</b><div class="mu">Jumlah ketidakhadiran di kelas pada rentang tanggal di atas, beserta rinciannya per mapel.</div><br>
+  <button class="b" id="rGo2">Tampilkan rekap</button> <button class="s" id="rXl2">Excel</button> <button class="s" id="rPr2">Cetak / PDF</button>
+  <div class="mu" id="rI2"></div><div id="cRek2" class="wrap"><table class="stk" id="tRk"></table></div></div>`);
+  const rentang=()=>({dari:$('#qD').value,sampai:$('#qS').value});
+  $('#qGo').onclick=run(async()=>{
+    const r=await api('kelas_sesi_list',rentang());SSR=r.v;tabel();
+  });
+  const tabel=()=>{
+    const q=$('#qC').value.toLowerCase(),L=SSR.filter(x=>!q||(x.kelas+' '+x.mapel+' '+x.guru).toLowerCase().includes(q)).sort((a,b)=>a.tgl.localeCompare(b.tgl)||a.jam-b.jam);
+    $('#qI').textContent=L.length+' sesi';
+    $('#tSs').innerHTML='<tr><th>Tanggal</th><th>Jam</th><th>Kelas</th><th>Mapel</th><th>Guru</th><th>Hadir</th></tr>'+L.map(x=>`<tr><td>${esc(x.tgl)}</td><td>${x.jam}</td><td>${esc(x.kelas)}</td><td>${esc(x.mapel)}</td><td>${esc(x.guru)}</td><td>${x.hadir}/${x.jumlah}</td></tr>`).join('');stackify();
+  };
+  $('#qC').oninput=tabel;
+  $('#qXl').onclick=()=>xl(SSR.map(x=>({Tanggal:x.tgl,Jam_Ke:x.jam,Jenis:x.jenis,Kelas:x.kelas,Mapel:x.mapel,Guru:x.guru,Jumlah:x.jumlah,Hadir:x.hadir,Tidak_Hadir:x.tidak})),'presensi-kelas-'+$('#qD').value);
+  $('#rGo2').onclick=run(async()=>{
+    const r=await api('kelas_rekap',rentang());
+    RKR=r.v.map(x=>({NIS:x.nis,Nama:x.nama,Kelas:x.kelas,Total_Tidak_Hadir:x.total,Rincian:Object.keys(x.mapel).map(m=>m+' '+x.mapel[m]).join(', ')}));
+    $('#rI2').textContent=r.sesi+' sesi pada rentang ini • '+r.v.length+' siswa pernah tidak hadir';
+    $('#tRk').innerHTML='<tr><th>Nama</th><th>Kelas</th><th>Total</th><th>Rincian per mapel</th></tr>'+r.v.map(x=>`<tr><td>${esc(x.nama)}</td><td>${esc(x.kelas)}</td><td><b>${x.total}</b></td><td>${esc(Object.keys(x.mapel).map(m=>m+' '+x.mapel[m]).join(', '))}</td></tr>`).join('');stackify();
+  });
+  $('#rXl2').onclick=()=>xl(RKR,'rekap-tidak-hadir-kelas-'+$('#qD').value);
+  $('#rPr2').onclick=()=>cetak('#cRek2');
 }
 
 /* Laporan */

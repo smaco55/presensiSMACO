@@ -139,6 +139,7 @@ async function sync(full){
 }
 function buildMap(){M={};D.orang.forEach(p=>{M[p.nis]=p;M[p.kode]=p})}
 async function start(){
+  if(me&&me.peran==='Guru'){location.replace('kelas.html');return}
   $('#usr').textContent=me.nama;$('#adm').style.display=me.peran==='Admin'?'inline':'none';
   Q=(await kv('Q'))||[];
   try{await sync(true)}catch(e){const c=await kv('D');if(c){D=c;buildMap();$('#tgl').textContent='(offline) '+(D.tgl||'')}else{$('#sj').textContent='Gagal memuat';return}}
