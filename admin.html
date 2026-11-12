@@ -73,18 +73,7 @@ const field=(id,l,v='',t='text',x='')=>`<div><label>${l}</label><input id="${id}
 const opts=(a,sel)=>a.map(o=>`<option ${o===sel?'selected':''}>${esc(o)}</option>`).join('');
 
 /* Login */
-function drawLogin(){
-  $('#app').innerHTML=`<div id="login"><div class="lg"><div class="lg-brand">${brandLogo(84)}<h1>${esc(TEMA.nama)}</h1><div class="ln"></div><p>${esc(TEMA.slogan)}</p></div><div class="lg-form"><h2 style="margin:0 0 4px;font-size:21px">Masuk</h2><div class="mu">Gunakan akun yang diberikan oleh sekolah</div><br>
-  ${window.PRESENSI_API?'':field('lApi','URL API (Apps Script)',API)}${field('lUser','Username')}${field('lPass','Password','','password')}
-  <button class="b" style="width:100%" id="lGo">Masuk</button><br><br><a class="mu" href="index.html">Ke halaman presensi</a></div></div></div>`;
-  $('#lPass').onkeydown=e=>{if(e.key==='Enter')$('#lGo').click()};
-  $('#lGo').onclick=run(async()=>{
-    if(!window.PRESENSI_API){API=$('#lApi').value.trim();localStorage.setItem('api',API)}
-    const r=await api('login',{u:$('#lUser').value,p:$('#lPass').value});
-    tok=r.t;me=r.u;sessionStorage.setItem('tok',tok);sessionStorage.setItem('me',JSON.stringify(me));drawApp();
-    if(r.awal)setTimeout(()=>toast('Password masih bawaan. Segera ganti lewat tombol Ganti password.',1),600);
-  });
-}
+function drawLogin(){location.replace('index.html?m=sesi')} // login terpusat di index.html
 async function keluar(silent){
   if(!silent&&tok)try{await api('logout')}catch(e){}
   tok='';me=null;sessionStorage.clear();drawLogin();
@@ -93,16 +82,23 @@ async function keluar(silent){
 /* Kerangka */
 const PG={dash:['Dashboard',pDash],siswa:['Siswa',pSiswa],guru:['Guru',pGuru],kelas:['Kelas',pKelas],petugas:['Petugas',pPetugas],set:['Pengaturan',pSet],izin:['Izin/Sakit',pIzin],kp:['Kelas Pilihan',pKP],pk:['Presensi Kelas',pPK],lap:['Laporan',pLap],notif:['Notifikasi',pNotif],dev:['Perangkat',pDev],log:['Log',pLog]};
 function drawApp(){
-  if(me.peran==='Guru'){location.replace('kelas.html');return} // guru memakai halaman Presensi Kelas
+  if(me.peran==='Guru'){location.replace('kelas.html');return}      // guru memakai halaman Presensi Kelas
+  if(me.peran==='Petugas'){location.replace('presensi.html');return} // petugas memakai halaman presensi
   const ks=me.peran==='Admin'?Object.keys(PG):me.peran==='Wali'?['dash','izin','pk','lap']:['dash'];
-  $('#app').innerHTML=`<header class="hd"><div class="brand">${brandLogo(46)}<div><div class="nm">${esc(TEMA.nama)}</div><div class="sl">${esc(TEMA.slogan)}</div></div></div><div class="btns"><span class="mu">${esc(me.nama)} · ${esc(me.peran)}${me.kelas?' '+esc(me.kelas):''}</span><a class="s" href="index.html" style="text-decoration:none">Halaman Presensi</a> <button class="s" id="pw">Ganti password</button> <button class="s" id="out">Keluar</button></div></header>
-  <nav>${ks.map(k=>`<button data-p="${k}">${PG[k][0]}</button>`).join('')}</nav><div id="view"></div>`;
+  const GR=[['Utama',['dash']],['Data',['siswa','guru','kelas','kp','petugas']],['Presensi',['izin','pk','lap','notif']],['Sistem',['set','dev','log']]];
+  const nav=GR.map(g=>{const it=g[1].filter(k=>ks.includes(k));return it.length?`<div class="grp">${g[0]}</div>`+it.map(k=>`<button data-p="${k}">${PG[k][0]}</button>`).join(''):''}).join('');
+  $('#app').className='wide';
+  $('#app').innerHTML=`<div class="shell"><aside class="side" id="side"><div class="brand">${brandLogo(42)}<div><div class="nm">${esc(TEMA.nama)}</div><div class="sl">${esc(TEMA.slogan)}</div></div></div><nav>${nav}</nav></aside><div class="scrim" id="scrim"></div>
+  <div class="main"><div class="topm"><div class="tl"><button class="s" id="burger">☰ Menu</button><h2 id="ttl"></h2></div><div class="btns"><span class="mu">${esc(me.nama)} · ${esc(me.peran)}${me.kelas?' '+esc(me.kelas):''}</span><a class="s" href="presensi.html" style="text-decoration:none">Halaman Presensi</a> <button class="s" id="pw">Ganti password</button> <button class="s" id="out">Keluar</button></div></div><div id="view"></div></div></div>`;
   $('#out').onclick=()=>keluar();
   $('#pw').onclick=run(async()=>{const l=prompt('Password lama');if(!l)return;const b=prompt('Password baru (minimal 8 karakter)');if(!b)return;await api('ganti_password',{lama:l,baru:b});toast('Password diganti')});
-  $('nav').onclick=e=>{if(e.target.dataset.p)goto(e.target.dataset.p)};
+  const tutup=()=>{$('#side').classList.remove('open');$('#scrim').classList.remove('on')};
+  $('#burger').onclick=()=>{$('#side').classList.add('open');$('#scrim').classList.add('on')};$('#scrim').onclick=tutup;
+  $('nav').onclick=e=>{const b=e.target.closest('button[data-p]');if(b){goto(b.dataset.p);tutup()}};
+  if(sessionStorage.getItem('awal')){sessionStorage.removeItem('awal');setTimeout(()=>toast('Password masih bawaan. Segera ganti lewat tombol Ganti password.',1),600)}
   goto('dash');
 }
-function goto(p){cur=p;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));V('<div class="mu">Memuat...</div>');run(PG[p][1])()}
+function goto(p){cur=p;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));const t=$('#ttl');if(t)t.textContent=PG[p][0];scrollTo(0,0);V('<div class="mu">Memuat...</div>');run(PG[p][1])()}
 
 /* Dashboard */
 async function pDash(){
@@ -339,32 +335,47 @@ async function pKP(){
 }
 
 /* Laporan presensi kelas */
-let SSR=[],RKR=[];
+let SSR=[],RKR=[],MXR=null;
 async function pPK(){
-  const t=new Date().toLocaleDateString('sv-SE');
-  V(`<div class="card"><b>Presensi kelas (per pelajaran)</b>
+  const t=new Date().toLocaleDateString('sv-SE'),wali=me.peran==='Wali';
+  KL=(await api('kelas_list')).v.filter(k=>k.Status!=='Nonaktif');
+  V(`<div class="card"><b>Presensi per kelas (tabel jam pelajaran)</b>
+  <div class="row"><div><label>Kelas</label><select id="mK" ${wali?'disabled':''}>${KL.map(k=>`<option value="${esc(k.ID_Kelas)}" ${wali&&k.ID_Kelas===me.kelas?'selected':''}>${esc(k.Nama_Kelas||k.ID_Kelas)}</option>`).join('')}</select></div>${field('mT','Tanggal',t,'date')}</div>
+  <button class="b" id="mGo">Tampilkan</button> <button class="s" id="mXl">Excel</button> <button class="s" id="mPr">Cetak / PDF</button>
+  <div id="cMx"><div class="mu" id="mI" style="margin-top:8px"></div><div class="wrap"><table class="mx" id="tMx"></table></div>
+  <div class="mu">✓ hadir • ✗ tidak hadir (T = tanpa keterangan, S = sakit, I = izin) • – tidak ada sesi pada jam itu</div></div></div>
+  <div class="card"><b>Daftar sesi</b>
   <div class="row">${field('qD','Dari',t,'date')}${field('qS','Sampai',t,'date')}${field('qC','Cari kelas / mapel / guru')}</div>
   <button class="b" id="qGo">Tampilkan sesi</button> <button class="s" id="qXl">Excel</button>
   <div class="mu" id="qI"></div><div class="wrap"><table class="stk" id="tSs"></table></div></div>
-  <div class="card"><b>Rekap tidak hadir per siswa</b><div class="mu">Jumlah ketidakhadiran di kelas pada rentang tanggal di atas, beserta rinciannya per mapel.</div><br>
+  <div class="card"><b>Rekap tidak hadir per siswa</b><div class="mu">Berdasarkan rentang tanggal pada kartu Daftar sesi di atas, lengkap dengan rincian keterangan dan mapel.</div><br>
   <button class="b" id="rGo2">Tampilkan rekap</button> <button class="s" id="rXl2">Excel</button> <button class="s" id="rPr2">Cetak / PDF</button>
   <div class="mu" id="rI2"></div><div id="cRek2" class="wrap"><table class="stk" id="tRk"></table></div></div>`);
-  const rentang=()=>({dari:$('#qD').value,sampai:$('#qS').value});
-  $('#qGo').onclick=run(async()=>{
-    const r=await api('kelas_sesi_list',rentang());SSR=r.v;tabel();
+  const sel=c=>c==='h'?'<td class="mh">✓</td>':c?`<td class="mt" title="${{T:'Tanpa keterangan',S:'Sakit',I:'Izin'}[c]}">✗<sup>${c}</sup></td>`:'<td class="mm">–</td>';
+  $('#mGo').onclick=run(async()=>{
+    const r=await api('kelas_matriks',{kelas:$('#mK').value,tgl:$('#mT').value});MXR=r;
+    $('#mI').textContent='Kelas '+r.kelas+' • '+r.tgl+' • '+r.v.length+' siswa';
+    $('#tMx').innerHTML='<tr><th>No</th><th>Nama</th>'+r.jam.map(j=>`<th title="${esc(j.info||'tidak ada sesi')}">JP ${j.jam}</th>`).join('')+'<th>Tdk hadir</th></tr>'+
+      r.v.map((s,i)=>`<tr><td>${i+1}</td><td class="n">${esc(s.nama)}</td>${r.jam.map(j=>sel(s.c[j.jam])).join('')}<td><b>${r.jam.filter(j=>['T','S','I'].includes(s.c[j.jam])).length}</b></td></tr>`).join('')||'<tr><td colspan="12" class="mu">Tidak ada siswa di kelas ini.</td></tr>';
   });
+  $('#mXl').onclick=()=>{if(!MXR)return toast('Tampilkan tabel dulu',1);const L={h:'✓',T:'✗ (T)',S:'✗ (S)',I:'✗ (I)','':'-'};
+    xl(MXR.v.map((s,i)=>{const o={No:i+1,NIS:s.nis,Nama:s.nama};MXR.jam.forEach(j=>o['JP '+j.jam]=L[s.c[j.jam]]);return o}),'presensi-kelas-'+MXR.kelas+'-'+MXR.tgl)};
+  $('#mPr').onclick=()=>cetak('#cMx');
+  const rentang=()=>({dari:$('#qD').value,sampai:$('#qS').value});
   const tabel=()=>{
     const q=$('#qC').value.toLowerCase(),L=SSR.filter(x=>!q||(x.kelas+' '+x.mapel+' '+x.guru).toLowerCase().includes(q)).sort((a,b)=>a.tgl.localeCompare(b.tgl)||a.jam-b.jam);
     $('#qI').textContent=L.length+' sesi';
     $('#tSs').innerHTML='<tr><th>Tanggal</th><th>Jam</th><th>Kelas</th><th>Mapel</th><th>Guru</th><th>Hadir</th></tr>'+L.map(x=>`<tr><td>${esc(x.tgl)}</td><td>${x.jam}</td><td>${esc(x.kelas)}</td><td>${esc(x.mapel)}</td><td>${esc(x.guru)}</td><td>${x.hadir}/${x.jumlah}</td></tr>`).join('');stackify();
   };
+  $('#qGo').onclick=run(async()=>{SSR=(await api('kelas_sesi_list',rentang())).v;tabel()});
   $('#qC').oninput=tabel;
-  $('#qXl').onclick=()=>xl(SSR.map(x=>({Tanggal:x.tgl,Jam_Ke:x.jam,Jenis:x.jenis,Kelas:x.kelas,Mapel:x.mapel,Guru:x.guru,Jumlah:x.jumlah,Hadir:x.hadir,Tidak_Hadir:x.tidak})),'presensi-kelas-'+$('#qD').value);
+  $('#qXl').onclick=()=>xl(SSR.map(x=>({Tanggal:x.tgl,Jam_Ke:x.jam,Jenis:x.jenis,Kelas:x.kelas,Mapel:x.mapel,Guru:x.guru,Jumlah:x.jumlah,Hadir:x.hadir,Tidak_Hadir:x.tidak})),'sesi-kelas-'+$('#qD').value);
+  const ket=x=>`Tanpa ket. ${x.ket['Tanpa keterangan']||0} • Sakit ${x.ket.Sakit||0} • Izin ${x.ket.Izin||0}`;
   $('#rGo2').onclick=run(async()=>{
     const r=await api('kelas_rekap',rentang());
-    RKR=r.v.map(x=>({NIS:x.nis,Nama:x.nama,Kelas:x.kelas,Total_Tidak_Hadir:x.total,Rincian:Object.keys(x.mapel).map(m=>m+' '+x.mapel[m]).join(', ')}));
+    RKR=r.v.map(x=>({NIS:x.nis,Nama:x.nama,Kelas:x.kelas,Total_Tidak_Hadir:x.total,Tanpa_Keterangan:x.ket['Tanpa keterangan']||0,Sakit:x.ket.Sakit||0,Izin:x.ket.Izin||0,Rincian_Mapel:Object.keys(x.mapel).map(m=>m+' '+x.mapel[m]).join(', ')}));
     $('#rI2').textContent=r.sesi+' sesi pada rentang ini • '+r.v.length+' siswa pernah tidak hadir';
-    $('#tRk').innerHTML='<tr><th>Nama</th><th>Kelas</th><th>Total</th><th>Rincian per mapel</th></tr>'+r.v.map(x=>`<tr><td>${esc(x.nama)}</td><td>${esc(x.kelas)}</td><td><b>${x.total}</b></td><td>${esc(Object.keys(x.mapel).map(m=>m+' '+x.mapel[m]).join(', '))}</td></tr>`).join('');stackify();
+    $('#tRk').innerHTML='<tr><th>Nama</th><th>Kelas</th><th>Total</th><th>Keterangan</th><th>Rincian per mapel</th></tr>'+r.v.map(x=>`<tr><td>${esc(x.nama)}</td><td>${esc(x.kelas)}</td><td><b>${x.total}</b></td><td>${esc(ket(x))}</td><td>${esc(Object.keys(x.mapel).map(m=>m+' '+x.mapel[m]).join(', '))}</td></tr>`).join('');stackify();
   });
   $('#rXl2').onclick=()=>xl(RKR,'rekap-tidak-hadir-kelas-'+$('#qD').value);
   $('#rPr2').onclick=()=>cetak('#cRek2');

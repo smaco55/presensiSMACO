@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#1e3a5f">
+<title>Presensi Kedatangan</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#f4f6f8;--card:#fff;--tx:#111827;--mu:#6b7280;--pr:#0f766e;--bd:#e5e7eb;--ok:#15803d;--okb:#dcfce7;--wn:#a16207;--wnb:#fef9c3;--er:#b91c1c;--erb:#fee2e2}
+@media(prefers-color-scheme:dark){:root{--bg:#0b1115;--card:#151d23;--tx:#e5e7eb;--mu:#9ca3af;--pr:#2dd4bf;--bd:#27333b;--ok:#86efac;--okb:#14532d;--wn:#fde047;--wnb:#422006;--er:#fca5a5;--erb:#450a0a}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--tx);font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+#app{max-width:860px;margin:auto;padding:10px 16px 40px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.mu{color:var(--mu);font-size:13px}
+#jam{font-size:26px;font-weight:700}
+.pill{display:inline-block;padding:3px 12px;border-radius:999px;font-weight:600;font-size:14px}
+.pill.ok{background:var(--okb);color:var(--ok)}.pill.wn{background:var(--wnb);color:var(--wn)}.pill.err{background:var(--erb);color:var(--er)}
+nav{display:flex;gap:6px;padding:8px 0}
+nav button{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:9px 14px;border-radius:999px;cursor:pointer}
+nav button.on{background:var(--pr);color:var(--bg);border-color:var(--pr);font-weight:600}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+input,select{font:inherit;width:100%;padding:12px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);margin-bottom:8px}
+#scan{position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:0;padding:0;margin:0;border:0}
+.b{font:inherit;background:var(--pr);color:var(--bg);border:0;border-radius:10px;padding:11px 16px;font-weight:600;cursor:pointer}
+.s{font:inherit;background:none;border:1px solid var(--bd);color:var(--tx);border-radius:8px;padding:4px 10px;font-size:12px;cursor:pointer}
+#hasil{display:flex;gap:16px;align-items:center;border-radius:14px;padding:16px;margin-bottom:12px;min-height:120px;background:var(--card);border:1px solid var(--bd)}
+#hasil img{width:90px;height:120px;object-fit:cover;border-radius:10px;background:var(--bg)}
+#hasil b{display:block;font-size:28px;line-height:1.2}
+#hasil.ok{background:var(--okb);color:var(--ok)}#hasil.wn{background:var(--wnb);color:var(--wn)}#hasil.err{background:var(--erb);color:var(--er)}
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:12px}
+.stat div{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:8px;text-align:center;color:var(--mu);font-size:12px}.stat b{display:block;font-size:22px;color:var(--tx)}
+#qr{width:100%;max-height:340px;background:#000;border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:13px}td{padding:5px 3px;border-bottom:1px solid var(--bd)}
+#login{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;justify-content:center;padding:16px;z-index:5}
+#login .lg{width:100%;max-width:780px}
+.bar2{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 4px}.bar2 .sp{flex:1}
+.row{display:flex;gap:8px}.row>*{flex:1}
+</style>
+<link rel="stylesheet" href="tema.css">
+<script src="config.js"></script>
+<script src="tema.js"></script>
+</head>
+<body>
+<div id="login"><div class="lg"><div class="lg-brand" id="lb"></div><div class="lg-form"><h2 style="margin:0 0 4px;font-size:21px">Masuk</h2><div class="mu" id="lm">Masuk untuk memulai</div><br>
+<input id="lApi" placeholder="URL API (Apps Script)"><input id="lU" placeholder="Username"><input id="lP" type="password" placeholder="Password">
+<button class="b" style="width:100%" id="lGo">Masuk</button></div></div></div>
+<div id="idle"></div>
+
+<div id="app">
+<header class="hd"><div class="brand" id="hb"></div><div style="text-align:right"><div id="jam">--:--:--</div><div class="mu" id="tgl"></div></div></header>
+<div class="bar2 mu"><span id="usr"></span><span id="qi"></span><span class="sp"></span><span id="sj" class="pill wn">Memuat</span><button class="s" id="sync">Sinkron</button><a id="adm" href="admin.html" class="s" style="display:none;text-decoration:none">Admin</a><button class="s" id="out">Keluar</button></div>
+<nav id="tabs"></nav>
+<div id="hasil"><span class="mu">Menunggu scan...</span></div>
+
+<section id="s-scan" class="card">
+<div class="scanbox">
+<div class="scantx">Tempelkan kartu pelajar pada pembaca</div><div class="mu" id="modeLbl">Mode: otomatis (sesuai jam)</div></div>
+<input id="scan" inputmode="none" autocomplete="off" tabindex="-1" aria-hidden="true">
+</section>
+<section id="s-cam" class="card" style="display:none"><div id="qr"></div><div class="mu">Arahkan barcode atau QR code ke kamera.</div></section>
+
+<section id="s-wajah" class="card" style="display:none"><video id="vid" autoplay playsinline muted style="width:100%;max-height:340px;border-radius:10px;background:#000;object-fit:cover"></video>
+<div id="wmsg" style="font-size:20px;font-weight:600;text-align:center;margin-top:8px">Memuat...</div></section>
+<section id="s-belum" class="card" style="display:none">
+<div id="bL"><b>Belum presensi (khusus petugas)</b><div class="mu">Area ini terkunci karena memuat data kontak dan tombol pencatatan. Masukkan password akun petugas untuk membuka selama 5 menit.</div><br>
+<input id="bP" type="password" placeholder="Password petugas" autocomplete="off"><button class="b" id="bBuka">Buka</button> <button class="s" id="bX1">Kembali</button></div>
+<div id="bU" style="display:none">
+<div class="rowb"><b>Belum presensi hari ini</b><span class="mu" id="bInfo"></span></div>
+<div class="row"><input id="bQ" placeholder="Cari nama atau NIS"><select id="bK"><option value="">Semua kelas</option></select></div>
+<button class="s" id="bRef">Muat ulang</button> <span class="mu" id="bWkt"></span>
+<div id="bList"></div>
+<button class="s" id="bKunci" style="margin-top:8px">Kunci sekarang</button></div>
+</section>
+<section id="s-nis" class="card" style="display:none"><div class="rowb"><b>Input NIS (khusus petugas)</b></div>
+<div id="dmL"><div class="mu">Menu ini terkunci agar siswa tidak bisa mengetik nomor induk sendiri. Masukkan password akun petugas untuk membuka selama 5 menit.</div><br>
+<input id="dmP" type="password" placeholder="Password petugas" autocomplete="off"><button class="b" id="dmBuka">Buka</button> <button class="s" id="dmX1">Kembali</button></div>
+<div id="dmU" style="display:none"><div class="mu" id="dmS">Terbuka</div><br>
+<label>Nomor induk siswa</label><input id="dmN" inputmode="numeric" autocomplete="off" placeholder="Ketik NIS lalu tekan Enter">
+<div id="dmPrev" style="display:none"></div>
+<div id="dmAct" style="display:none"><button class="b" id="dmOk" disabled>Ya, benar. Catat presensi</button> <button class="s" id="dmNo">Bukan, ulangi</button></div>
+<label style="display:block;margin-top:10px">Mode presensi</label><select id="mode"><option value="auto">Otomatis (sesuai jam)</option><option value="Masuk">Masuk saja</option><option value="Pulang">Pulang saja</option></select>
+<button class="s" id="dmX2" style="margin-top:6px">Kunci sekarang</button></div></section>
+<dialog id="dk"><div class="konf"><img id="dkF" alt="" style="display:none"><div><div class="mu">Apakah ini anak yang dimaksud?</div><b id="dkN"></b><div class="mu" id="dkI"></div><div class="pill wn" id="dkR" style="margin-top:6px"></div></div></div>
+<div class="mu">Siswa akan dicatat HADIR sekarang dengan keterangan di atas.</div><br>
+<button class="b" id="dkOk">Ya, benar. Catat hadir</button> <button class="s" id="dkX">Batal</button></dialog>
+<dialog id="dz"><b id="dzT">Catat izin / sakit</b><div class="mu" id="dzN"></div><br>
+<label>Jenis</label><select id="dzJ"><option>Sakit</option><option>Izin</option></select>
+<label>Sampai tanggal (kosong = hari ini saja, maksimal 7 hari)</label><input id="dzE" type="date">
+<label>Keterangan (mis. demam, acara keluarga)</label><input id="dzK">
+<button class="b" id="dzOk">Simpan</button> <button class="s" id="dzX">Batal</button></dialog>
+<div class="stat" id="stat"></div>
+<div class="card" id="recCard"><b>10 presensi terakhir</b><table id="rec"></table></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* IndexedDB sederhana (data siswa + antrean) */
+const idb=new Promise((ok,no)=>{const r=indexedDB.open('presensi',1);r.onupgradeneeded=()=>r.result.createObjectStore('kv');r.onsuccess=()=>ok(r.result);r.onerror=no});
+const kv=async(k,v)=>{const d=await idb;return new Promise((ok,no)=>{const s=d.transaction('kv',v===undefined?'readonly':'readwrite').objectStore('kv'),q=v===undefined?s.get(k):s.put(v,k);q.onsuccess=()=>ok(q.result);q.onerror=no})};
+
+let API=window.PRESENSI_API||localStorage.getItem('api')||'',tok=sessionStorage.getItem('tok')||'',me=JSON.parse(sessionStorage.getItem('me')||'null'),
+    D=null,M={},Q=[],off=0,sudah={},rec=[],last={},fl=false,tab='scan',qr=null,t0=0;
+const dev=(navigator.userAgent.match(/\(([^)]+)\)/)||[,''])[1].slice(0,60);
+const jkt=()=>new Date(Date.now()+off).toLocaleTimeString('en-GB',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit'});
+
+async function api(a,d={}){
+  const r=await fetch(API,{method:'POST',body:JSON.stringify({a,t:tok,dev,...d})}),j=await r.json();
+  if(j.err==='SESI'){showLogin('Sesi berakhir, masuk lagi (data antrean aman)');throw new Error('Sesi berakhir')}
+  if(!j.ok)throw new Error(j.err||'Gagal');return j;
+}
+/* Login */
+function showLogin(m){location.replace('index.html?m=sesi')} // login terpusat di index.html (antrean presensi tetap tersimpan di perangkat)
+$('#lGo').onclick=async()=>{
+  try{if(!window.PRESENSI_API){API=$('#lApi').value.trim();localStorage.setItem('api',API)}
+    const r=await fetch(API,{method:'POST',body:JSON.stringify({a:'login',u:$('#lU').value,p:$('#lP').value,dev})}),j=await r.json();
+    if(!j.ok)throw new Error(j.err);
+    tok=j.t;me=j.u;sessionStorage.setItem('tok',tok);sessionStorage.setItem('me',JSON.stringify(me));$('#login').style.display='none';$('#lP').value='';start();
+  }catch(e){$('#lm').textContent=e.message}
+};
+$('#lP').onkeydown=e=>{if(e.key==='Enter')$('#lGo').click()};
+$('#out').onclick=async()=>{try{await api('logout')}catch(e){}D=null;kv('D',null);tok='';sessionStorage.clear();showLogin()};
+
+/* Sinkron data */
+async function sync(full){
+  const r=await api('presensi_data',{ringan:!full});
+  off=r.now-Date.now();
+  const s2=r.sudah;Q.forEach(i=>{const p=M[i.kode];if(p){const k=p.nis+'|'+i.jenis;if(!s2[k]&&sudah[k])s2[k]=sudah[k]}});sudah=s2;
+  D=D||{};D.st=r.st;D.aktif=r.aktif;D.tgl=r.tgl;
+  if(typeof dmTampil==='function')dmTampil();
+  if(full){D.orang=r.orang;
+    if(r.st.metode_aktif.split(',').includes('wajah')){try{D.bio=(await api('bio_data')).v}catch(e){}}
+    await kv('D',D);buildMap()}
+  $('#tgl').textContent=r.tgl;ringkas();
+}
+function buildMap(){M={};D.orang.forEach(p=>{M[p.nis]=p;M[p.kode]=p})}
+async function start(){
+  if(me&&me.peran==='Guru'){location.replace('kelas.html');return}
+  $('#usr').textContent=me.nama;$('#adm').style.display=me.peran==='Admin'?'inline':'none';
+  Q=(await kv('Q'))||[];
+  try{await sync(true)}catch(e){const c=await kv('D');if(c){D=c;buildMap();$('#tgl').textContent='(offline) '+(D.tgl||'')}else{$('#sj').textContent='Gagal memuat';return}}
+  drawTabs();flush();ringkas();
+}
+setInterval(()=>{if(tok)sync(false).catch(()=>{})},30000);
+$('#sync').onclick=()=>sync(true).then(()=>say('')).catch(e=>tampil('err','Sinkron gagal',e.message));
+
+/* Jam & status */
+function sj(){
+  if(!D||!D.st)return['Memuat','wn'];const h=jkt(),s=D.st;
+  if(!D.aktif)return['Bukan hari aktif','err'];
+  if(h>=s.jam_mulai_pulang)return['Waktu pulang','ok'];
+  if(h<s.jam_mulai)return['Belum dibuka','wn'];
+  if(h>s.jam_selesai)return['Ditutup','err'];
+  return h<=s.jam_batas_terlambat?['Tepat waktu','ok']:['Terlambat','wn'];
+}
+setInterval(()=>{
+  $('#jam').textContent=new Date(Date.now()+off).toLocaleTimeString('id-ID',{timeZone:'Asia/Jakarta',hour12:false});
+  const [t,c]=sj(),e=$('#sj');e.textContent=t;e.className='pill '+c;
+  $('#qi').textContent=Q.length?'Antrean: '+Q.length:'';
+},1000);
+
+/* Suara */
+function beep(ok){try{const a=new (window.AudioContext||window.webkitAudioContext)(),o=a.createOscillator();o.frequency.value=ok?880:220;o.connect(a.destination);o.start();o.stop(a.currentTime+(ok?.12:.4))}catch(e){}}
+function say(t){if(!t)return;try{const u=new SpeechSynthesisUtterance(t);u.lang='id-ID';speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}}
+function tampil(c,t,m,p){
+  const h=$('#hasil');h.className=c;h.style.animation='none';void h.offsetWidth;h.style.animation='';
+  h.innerHTML=(p&&p.foto?'<img src="'+p.foto+'">':'')+'<div><b>'+esc(t)+'</b>'+esc(m)+'</div>';
+  beep(c==='ok'||c==='wn');
+}
+
+/* Presensi */
+function mark(kode,metode){
+  kode=String(kode).trim();if(!kode||!D||!D.orang)return;
+  if(last[kode]&&Date.now()-last[kode]<3000)return;last[kode]=Date.now();
+  const p=M[kode];
+  if(!p){say('Tidak dikenali');return tampil('err','Tidak dikenali',kode)}
+  if(!D.st.metode_aktif.split(',').includes(metode)){return tampil('err','Metode tidak diaktifkan',metode)}
+  const h=jkt(),m=$('#mode').value,jenis=m==='auto'?(h>=D.st.jam_mulai_pulang?'Pulang':'Masuk'):m;
+  if(!D.aktif)return tampil('err',p.nama,'Bukan hari aktif sekolah',p);
+  if(jenis==='Masuk'&&h<D.st.jam_mulai)return tampil('err',p.nama,'Presensi belum dibuka (mulai '+D.st.jam_mulai+')',p);
+  if(jenis==='Masuk'&&h>D.st.jam_selesai&&me.peran!=='Admin')return tampil('err',p.nama,'Presensi sudah ditutup',p);
+  const k=p.nis+'|'+jenis;
+  if(sudah[k]){say(p.nama+' sudah presensi');return tampil('wn',p.nama,'Sudah presensi '+jenis.toLowerCase()+' pukul '+sudah[k].split('|')[0],p)}
+  const st=jenis==='Pulang'?'Pulang':(h<=D.st.jam_batas_terlambat?'Tepat waktu':'Terlambat');
+  sudah[k]=h+'|'+st;
+  Q.push({kode,metode,jenis,ts:Date.now()+off,q:0});kv('Q',Q);
+  rec.unshift({h,n:p.nama,k:p.kelas,j:jenis,s:st});rec=rec.slice(0,10);
+  tampil(st==='Terlambat'?'wn':'ok',p.nama,p.kelas+' • '+jenis+' • '+st+' • '+h,p);
+  say(p.nama+(st==='Terlambat'?', terlambat':jenis==='Pulang'?', pulang':', hadir'));
+  ringkas();flush();
+}
+async function flush(){
+  if(fl||!Q.length||!tok||!API)return;fl=true;
+  const items=Q.slice(0,20);
+  try{
+    const r=await api('hadir',{items});
+    Q.splice(0,items.length);
+    r.res.forEach((x,i)=>{
+      const p=M[items[i].kode];if(!p)return;
+      if(x.err){delete sudah[p.nis+'|'+items[i].jenis];tampil('err',(x.nama||x.kode),'Ditolak server: '+x.err,p)}
+      else if(x.dup)sudah[p.nis+'|'+x.jenis]=x.jam+'|';
+    });
+    await kv('Q',Q);fl=false;ringkas();if(Q.length)flush();else if(tab==='belum')loadBelum(true);
+  }catch(e){items.forEach(i=>i.q=1);kv('Q',Q);fl=false}
+}
+setInterval(flush,8000);
+window.addEventListener('online',flush);
+
+function ringkas(){
+  if(!D||!D.orang)return;
+  const sis=D.orang.filter(p=>p.tipe==='Siswa');let ada=0,tl=0,gr=0;
+  Object.keys(sudah).forEach(k=>{if(!k.endsWith('|Masuk'))return;const p=M[k.split('|')[0]];if(!p)return;
+    if(p.tipe==='Guru')gr++;else{ada++;if(sudah[k].split('|')[1]==='Terlambat')tl++}});
+  $('#stat').innerHTML=[['Siswa',sis.length],['Sudah',ada],['Belum',Math.max(0,sis.length-ada)],['Terlambat',tl],['Guru hadir',gr]].map(x=>'<div><b>'+x[1]+'</b>'+x[0]+'</div>').join('');
+  $('#rec').innerHTML=rec.map(r=>'<tr><td>'+r.h+'</td><td>'+esc(r.n)+'</td><td>'+esc(r.k)+'</td><td>'+r.j+'</td><td>'+r.s+'</td></tr>').join('');
+}
+
+/* Tab, scanner, kamera */
+function drawTabs(){
+  const m=D.st.metode_aktif.split(','),T=[];
+  if(m.includes('barcode'))T.push(['scan','Scan Kartu']);
+  if(m.includes('barcode')||m.includes('qr'))T.push(['cam','Kamera']);
+  if(m.includes('wajah'))T.push(['wajah','Wajah']);
+  if(m.includes('nis')&&me&&['Admin','Petugas'].includes(me.peran))T.push(['nis','Input NIS'+(kunciMati()?'':' 🔒')]);
+  T.push(['belum','Belum presensi <span id="bCnt" class="pill wn" style="padding:0 8px"></span>']);
+  $('#tabs').innerHTML=T.map(t=>'<button data-t="'+t[0]+'">'+t[1]+'</button>').join('')||'<span class="mu">Tidak ada metode aktif. Atur di Admin.</span>';
+  if(T.length)go(T.some(t=>t[0]===tab)?tab:T[0][0]);
+}
+$('#tabs').onclick=e=>{const b=e.target.closest('button');if(b&&b.dataset.t)go(b.dataset.t)};
+function go(t){
+  if((tab==='nis'||tab==='belum')&&t!=='nis'&&t!=='belum'&&manualBuka())dmKunci(); // keluar dari area petugas = kunci kembali
+  tab=t;faceStop();if(qr){qr.stop().then(()=>qr.clear()).catch(()=>{});qr=null}
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  $('#s-scan').style.display=t==='scan'?'block':'none';$('#s-cam').style.display=t==='cam'?'block':'none';$('#s-wajah').style.display=t==='wajah'?'block':'none';$('#s-belum').style.display=t==='belum'?'block':'none';$('#s-nis').style.display=t==='nis'?'block':'none';$('#stat').style.display=$('#recCard').style.display=t==='belum'?'none':'';
+  if(t==='scan')$('#scan').focus();
+  if(t==='wajah')startFace();
+  if(t==='belum'){dmTampil();loadBelum()}
+  if(t==='nis'){dmReset();dmTampil();setTimeout(()=>(manualBuka()?$('#dmN'):$('#dmP')).focus(),50)}
+  if(t==='cam'){
+    qr=new Html5Qrcode('qr');
+    const cb=(x,r)=>mark(x,(r&&r.result&&r.result.format&&r.result.format.formatName==='QR_CODE')?'qr':'barcode'),cf={fps:10,qrbox:{width:300,height:160}};
+    qr.start({facingMode:'environment'},cf,cb).catch(()=>qr.start({facingMode:'user'},cf,cb).catch(e=>tampil('err','Kamera gagal dibuka',String(e))));
+  }
+}
+const AMBANG_SCANNER_MS=50; // rata-rata ms per karakter; ketikan lebih lambat dari ini dianggap diketik tangan dan ditolak
+$('#scan').onkeydown=e=>{
+  if(e.key.length===1&&!e.target.value)t0=performance.now();
+  if(e.key==='Enter'){
+    const v=e.target.value.trim(),ms=(performance.now()-t0)/Math.max(1,v.length);
+    if(v.length>=4&&ms<AMBANG_SCANNER_MS)mark(v,'barcode');
+    else if(v)tampil('err','Input ketik tidak diterima','Siswa hanya dapat scan kartu. Input NIS manual hanya oleh petugas.');
+    e.target.value='';
+  }
+};
+document.addEventListener('click',e=>{if(tab==='scan'&&!['SELECT','OPTION','BUTTON','INPUT'].includes(e.target.tagName))$('#scan').focus()});
+$('#scan').onblur=()=>setTimeout(()=>{if(tab==='scan'&&document.activeElement===document.body)$('#scan').focus()},200);
+
+/* ===== Pengenalan wajah + liveness ===== */
+// Ambang bisa disetel bila terlalu ketat/longgar di perangkat sekolah.
+const JARAK_WAJAH=0.5,EAR_BUKA=0.26,EAR_TUTUP=0.2,TOLEH_KIRI=0.36,TOLEH_KANAN=0.64,WAKTU_TANTANGAN=7000;
+let fStream=null,fMatcher=null,modelsOk=false,fS={step:'cari'};
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
+const ear=p=>(dist(p[1],p[5])+dist(p[2],p[4]))/(2*dist(p[0],p[3]));
+const setMsg=t=>{$('#wmsg').textContent=t};
+async function loadModels(){
+  if(modelsOk)return;
+  if(!window.faceapi)await new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js';s.onload=ok;s.onerror=()=>no(new Error('Pustaka wajah gagal dimuat'));document.head.appendChild(s)});
+  const u='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/';
+  await Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(u),faceapi.nets.faceLandmark68TinyNet.loadFromUri(u),faceapi.nets.faceRecognitionNet.loadFromUri(u)]);
+  modelsOk=true;
+}
+function faceStop(){if(fStream){fStream.getTracks().forEach(t=>t.stop());fStream=null}}
+function faceReset(m){fS={step:'cari',cnt:0,id:null,wait:Date.now()+1500};setMsg(m)}
+async function startFace(){
+  try{
+    setMsg('Memuat model wajah...');await loadModels();
+    const lab=(D.bio||[]).filter(b=>M[b.nis]).map(b=>new faceapi.LabeledFaceDescriptors(b.nis,b.t.map(a=>new Float32Array(a))));
+    if(!lab.length)return setMsg('Belum ada wajah terdaftar. Daftarkan di menu Admin.');
+    fMatcher=new faceapi.FaceMatcher(lab,JARAK_WAJAH);
+    fStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:640,height:480}});
+    $('#vid').srcObject=fStream;faceReset('Hadapkan wajah ke kamera');
+    const loop=async()=>{if(!fStream)return;try{await faceTick()}catch(e){}setTimeout(loop,fS.step==='tantang'?120:450)};loop();
+  }catch(e){setMsg('Wajah gagal dimulai: '+e.message)}
+}
+async function faceTick(){
+  const v=$('#vid');if(v.readyState<2||(fS.wait&&Date.now()<fS.wait))return;
+  const opt=new faceapi.TinyFaceDetectorOptions({inputSize:320,scoreThreshold:0.5});
+  if(fS.step==='cari'||fS.step==='cek'){
+    const d=await faceapi.detectSingleFace(v,opt).withFaceLandmarks(true).withFaceDescriptor();
+    if(!d){fS.cnt=0;fS.id=null;fS.step='cari';return setMsg('Hadapkan wajah ke kamera')}
+    const m=fMatcher.findBestMatch(d.descriptor);
+    if(fS.step==='cek'){ // verifikasi akhir: orangnya harus sama dengan yang lolos tantangan
+      if(m.label===fS.id){const id=fS.id;mark(id,'wajah');faceReset('Selesai. Berikutnya...')}
+      else faceReset('Wajah berbeda, ulangi');
+      return;
+    }
+    if(m.label==='unknown'){fS.cnt=0;return setMsg('Wajah tidak dikenali')}
+    if(m.label===fS.id)fS.cnt++;else{fS.id=m.label;fS.cnt=1}
+    if(fS.cnt>=2){ // dikenali dua kali berturut-turut: beri tantangan acak
+      fS.tt=Math.random()<.5?'kedip':'toleh';fS.dir=Math.random()<.5?'kiri':'kanan';fS.t=Date.now();fS.open=false;fS.step='tantang';
+      setMsg(fS.tt==='kedip'?'Kedipkan mata Anda':'Palingkan wajah ke sisi '+fS.dir+' layar');
+    }else setMsg('Memeriksa...');
+    return;
+  }
+  if(fS.step==='tantang'){
+    if(Date.now()-fS.t>WAKTU_TANTANGAN)return faceReset('Waktu habis, ulangi');
+    const d=await faceapi.detectSingleFace(v,opt).withFaceLandmarks(true);
+    if(!d)return;
+    const L=d.landmarks;let ok=false;
+    if(fS.tt==='kedip'){
+      const e=(ear(L.getLeftEye())+ear(L.getRightEye()))/2;
+      if(e>EAR_BUKA)fS.open=true;
+      if(fS.open&&e<EAR_TUTUP)ok=true;
+    }else{
+      const P=L.positions,r=(P[30].x-P[0].x)/(P[16].x-P[0].x);
+      ok=fS.dir==='kiri'?r<TOLEH_KIRI:r>TOLEH_KANAN;
+    }
+    if(ok){fS.step='cek';fS.cnt=0;setMsg('Memverifikasi...')}
+  }
+}
+
+/* ===== Belum presensi + catat izin/sakit oleh petugas ===== */
+let B=null;
+const isiPesan=(tpl,o)=>String(tpl).replace(/\{(\w+)\}/g,(m,k)=>k in o?o[k]:m);
+async function loadBelum(quiet){
+  if(!bukaBelum())return;
+  try{B=await api('belum_hadir');tampilBelum()}
+  catch(e){if(!quiet){$('#bList').innerHTML='<div class="mu" style="padding:10px 0">'+(B?'Tidak bisa memuat ulang (offline?). Menampilkan data terakhir. ':'Perlu internet untuk memuat daftar. ')+esc(e.message)+'</div>';if(B)tampilBelum(true)}}
+}
+function tampilBelum(offline){
+  if(!B)return;
+  const L=B.v.filter(s=>!sudah[s.nis+'|Masuk']&&!(izinLokal[s.nis])); // yang baru saja scan atau dicatat izin langsung hilang dari daftar
+  const q=$('#bQ').value.toLowerCase(),k=$('#bK').value;
+  const ks=[...new Set(B.v.map(s=>s.kelas))].sort();
+  $('#bK').innerHTML='<option value="">Semua kelas</option>'+ks.map(x=>'<option'+(x===k?' selected':'')+'>'+esc(x)+'</option>').join('');
+  const F=L.filter(s=>(!q||(s.nama+' '+s.nis).toLowerCase().includes(q))&&(!k||s.kelas===k));
+  const bc=$('#bCnt');if(bc)bc.textContent=L.length;
+  $('#bInfo').textContent=(B.aktif?'':'Bukan hari aktif • ')+'Hadir '+B.hadir+' • Izin/sakit '+B.izin+' • Belum '+L.length+' dari '+B.total;
+  $('#bWkt').textContent=(offline?'(data lama) ':'')+'Diperbarui '+jkt();
+  $('#bList').innerHTML=F.map(s=>{
+    const no=String(s.wa||'').replace(/\D/g,''),psn=encodeURIComponent(isiPesan((D&&D.st&&D.st.pesan_belum)||'Yth. Orang tua/wali {nama} (kelas {kelas}). {nama} belum tercatat hadir pada {tanggal}. Mohon konfirmasi. {sekolah}',{nama:s.nama,kelas:s.kelas,tanggal:String(B.tgl||'').split('-').reverse().join('-'),jam:'',sekolah:TEMA.nama}));
+    return '<div class="brow"><div><b>'+esc(s.nama)+'</b><div class="mu">Kelas '+esc(s.kelas)+' • NIS '+esc(s.nis)+(no?'':' • tanpa nomor orang tua')+'</div></div><div class="bact">'+
+      (no?'<a class="s" target="_blank" rel="noopener" href="https://wa.me/'+no+'?text='+psn+'">WA</a><a class="s" href="tel:+'+no+'">Telepon</a>':'')+
+      '<button class="s" data-i="'+esc(s.nis)+'" data-j="Sakit">Sakit</button><button class="s" data-i="'+esc(s.nis)+'" data-j="Izin">Izin</button><button class="s" data-i="'+esc(s.nis)+'" data-m="Kartu bermasalah">Kartu bermasalah</button><button class="s" data-i="'+esc(s.nis)+'" data-m="Lupa bawa kartu">Lupa bawa kartu</button></div></div>';
+  }).join('')||'<div class="mu" style="padding:12px 0">'+(L.length?'Tidak ada yang cocok dengan pencarian.':'Semua siswa sudah tercatat. 👍')+'</div>';
+}
+const izinLokal={};let dzNis='';
+$('#bRef').onclick=()=>loadBelum();
+$('#bQ').oninput=()=>tampilBelum();$('#bK').onchange=()=>tampilBelum();
+$('#bList').onclick=e=>{
+  const nis=e.target.dataset.i;if(!nis)return;
+  const s=B.v.find(x=>x.nis===nis);if(e.target.dataset.m)return tanyaKartu(s,e.target.dataset.m);dzNis=nis;
+  $('#dzN').textContent=s.nama+' • kelas '+s.kelas;$('#dzJ').value=e.target.dataset.j;$('#dzE').value='';$('#dzK').value='';$('#dz').showModal();
+};
+$('#dzX').onclick=()=>$('#dz').close();
+$('#dzOk').onclick=async()=>{
+  try{
+    const r=await api('izin_simpan',{nis:dzNis,jenis:$('#dzJ').value,tgl:new Date(Date.now()+off).toLocaleDateString('sv-SE',{timeZone:'Asia/Jakarta'}),sampai:$('#dzE').value||undefined,ket:$('#dzK').value});
+    izinLokal[dzNis]=1;$('#dz').close();tampil('ok','Tercatat '+$('#dzJ').value.toLowerCase(),r.n+' hari');tampilBelum();loadBelum(true);
+  }catch(e){alert(e.message)}
+};
+setInterval(()=>{if(tok&&D&&D.orang)loadBelum(true)},tab==='belum'?60000:120000);
+setInterval(()=>{if(tab==='belum'&&tok)loadBelum(true)},60000);
+
+/* ===== Input NIS manual: khusus petugas, dengan verifikasi password dan konfirmasi identitas ===== */
+let manualSampai=0,manualT=null;
+const kunciMati=()=>!!(D&&D.st&&D.st.kunci_petugas==='tidak'); // diatur admin di Pengaturan
+const manualBuka=()=>kunciMati()||Date.now()<manualSampai;
+const bukaBelum=()=>!!(me&&me.peran==='Wali')||manualBuka(); // wali kelas hanya melihat kelasnya sendiri, tanpa kunci
+function dmTampil(){
+  const b=manualBuka(),bb=bukaBelum();$('#dmL').style.display=b?'none':'block';$('#dmU').style.display=b?'block':'none';$('#bL').style.display=bb?'none':'block';$('#bU').style.display=bb?'block':'none';
+  if(b){if(kunciMati())$('#dmS').textContent='Akses petugas terbuka (kunci password dinonaktifkan di Pengaturan).';else{const s=Math.max(0,Math.round((manualSampai-Date.now())/1000));$('#dmS').textContent='Terbuka. Terkunci otomatis dalam '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}}
+  $('#dmX2').style.display=$('#bKunci').style.display=kunciMati()?'none':'';
+}
+function dmKunci(){manualSampai=0;clearInterval(manualT);api('kunci_manual').catch(()=>{});dmTampil()}
+$('#dmX1').onclick=()=>go('scan');
+$('#dmX2').onclick=()=>{dmKunci();go('scan')};
+$('#dmBuka').onclick=async()=>{
+  try{await api('buka_manual',{password:$('#dmP').value});manualSampai=Date.now()+300000;$('#dmP').value='';
+    clearInterval(manualT);manualT=setInterval(()=>{if(!manualBuka()){clearInterval(manualT);dmTampil()}else dmTampil()},1000);dmTampil();$('#dmN').focus()}
+  catch(e){alert(e.message)}
+};
+$('#dmP').onkeydown=e=>{if(e.key==='Enter')$('#dmBuka').click()};
+let dmP=null,dmAt=0;
+const dmReset=()=>{dmP=null;$('#dmN').value='';$('#dmPrev').style.display='none';$('#dmAct').style.display='none';$('#dmOk').disabled=true};
+$('#dmN').oninput=()=>{dmP=null;$('#dmPrev').style.display='none';$('#dmAct').style.display='none'};
+$('#dmN').onkeydown=e=>{
+  if(e.key!=='Enter')return;
+  const v=$('#dmN').value.trim();if(!v)return;
+  dmP=(D&&D.orang||[]).find(x=>x.nis===v||x.kode===v)||null;
+  const pv=$('#dmPrev');pv.style.display='block';
+  if(!dmP){pv.innerHTML='<div style="color:var(--er);padding:8px 0;font-weight:600">NIS '+esc(v)+' tidak ditemukan. Periksa kembali nomornya.</div>';$('#dmAct').style.display='none';beep(0);return}
+  // konfirmasi identitas: petugas harus memastikan ini anak yang dimaksud sebelum presensi dicatat
+  pv.innerHTML='<div class="konf">'+(dmP.foto?'<img src="'+dmP.foto+'" alt="">':'')+'<div><div class="mu">Apakah ini anak yang dimaksud?</div><b>'+esc(dmP.nama)+'</b><div class="mu">Kelas '+esc(dmP.kelas)+' • NIS '+esc(dmP.nis)+'</div></div></div>';
+  $('#dmAct').style.display='block';$('#dmOk').disabled=false;dmAt=Date.now();$('#dmOk').focus();
+};
+$('#dmNo').onclick=()=>{dmReset();$('#dmN').focus()};
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&tab==='nis'&&dmP){dmReset();$('#dmN').focus()}});
+$('#mode').onchange=()=>{const v=$('#mode').value;$('#modeLbl').textContent='Mode: '+(v==='auto'?'otomatis (sesuai jam)':v==='Masuk'?'masuk saja':'pulang saja')};
+$('#dmOk').onclick=()=>{
+  if(!dmP)return;
+  if(Date.now()-dmAt<400)return; // cegah Enter ganda tanpa sengaja langsung menyetujui
+  if(!manualBuka()){dmTampil();return alert('Akses manual sudah terkunci. Buka lagi dengan password.')}
+  const m=$('#mode').value,h=jkt(),jenis=m==='auto'?(h>=D.st.jam_mulai_pulang?'Pulang':'Masuk'):m;
+  if(catatManual(dmP,'nis',jenis,'')===false)return;
+  dmReset();$('#dmN').focus();
+};
+
+/* Kartu bermasalah / lupa bawa kartu: siswa hadir tetapi tidak dapat scan. Dicatat petugas (area terbuka) setelah konfirmasi identitas. */
+$('#bBuka').onclick=async()=>{
+  try{await api('buka_manual',{password:$('#bP').value});manualSampai=Date.now()+300000;$('#bP').value='';
+    clearInterval(manualT);manualT=setInterval(()=>{if(!manualBuka()){clearInterval(manualT);dmTampil()}else dmTampil()},1000);dmTampil();loadBelum()}
+  catch(e){alert(e.message)}
+};
+$('#bP').onkeydown=e=>{if(e.key==='Enter')$('#bBuka').click()};
+$('#bX1').onclick=()=>go('scan');
+$('#bKunci').onclick=()=>{dmKunci();go('scan')};
+let kP=null,kKet='',kAt=0;
+function tanyaKartu(s,ket){
+  if(!bukaBelum())return;
+  const p=(D&&D.orang||[]).find(x=>x.nis===s.nis)||{nis:s.nis,nama:s.nama,kelas:s.kelas,foto:''};
+  kP=p;kKet=ket;kAt=Date.now();
+  $('#dkF').style.display=p.foto?'block':'none';if(p.foto)$('#dkF').src=p.foto;
+  $('#dkN').textContent=p.nama;$('#dkI').textContent='Kelas '+p.kelas+' • NIS '+p.nis;$('#dkR').textContent=ket;
+  $('#dk').showModal();$('#dkOk').focus();
+}
+$('#dkX').onclick=()=>$('#dk').close();
+$('#dkOk').onclick=()=>{
+  if(!kP||Date.now()-kAt<400)return; // cegah Enter ganda langsung menyetujui
+  if(catatManual(kP,'tanpa_kartu','Masuk',kKet)===false)return;
+  $('#dk').close();tampilBelum();
+};
+/* Pencatatan manual (input NIS / kartu bermasalah / lupa bawa kartu): hasil tampil seketika, dikirim di latar belakang lewat antrean
+   (sama seperti scan kartu). Bila server menolak, pesan kesalahan tampil dan status dikembalikan. */
+function catatManual(p,metode,jenis,ket){
+  if(!navigator.onLine){alert('Pencatatan manual membutuhkan internet.');return false}
+  const h=jkt();
+  if(!D.aktif){tampil('err',p.nama,'Bukan hari aktif sekolah',p);return true}
+  if(jenis==='Masuk'&&h<D.st.jam_mulai){tampil('err',p.nama,'Presensi belum dibuka (mulai '+D.st.jam_mulai+')',p);return true}
+  if(jenis==='Masuk'&&h>D.st.jam_selesai&&me.peran!=='Admin'){tampil('err',p.nama,'Presensi sudah ditutup',p);return true}
+  const k=p.nis+'|'+jenis;
+  if(sudah[k]){say(p.nama+' sudah presensi');tampil('wn',p.nama,'Sudah presensi '+jenis.toLowerCase()+' pukul '+sudah[k].split('|')[0],p);return true}
+  const st=jenis==='Pulang'?'Pulang':(h<=D.st.jam_batas_terlambat?'Tepat waktu':'Terlambat');
+  sudah[k]=h+'|'+st;
+  Q.push({kode:p.nis,metode,jenis,ts:Date.now()+off,q:0,ket,konf:true});kv('Q',Q);
+  rec.unshift({h,n:p.nama,k:p.kelas,j:jenis,s:st});rec=rec.slice(0,10);ringkas();
+  tampil(st==='Terlambat'?'wn':'ok',p.nama,p.kelas+' • '+jenis+' • '+st+' • '+h+' • '+(ket||'manual'),p);
+  say(p.nama+(st==='Terlambat'?', terlambat':jenis==='Pulang'?', pulang':', hadir'));
+  flush();return true;
+}
+
+/* identitas sekolah + layar siaga */
+$('#lb').innerHTML=brandLogo(84)+'<h1>'+esc(TEMA.nama)+'</h1><div class="ln"></div><p>'+esc(TEMA.slogan)+'</p>';
+$('#hb').innerHTML=brandLogo(46)+'<div><div class="nm">'+esc(TEMA.nama)+'</div><div class="sl">'+esc(TEMA.slogan)+'</div></div>';
+$('#idle').innerHTML=brandLogo(96)+'<div class="nm">'+esc(TEMA.nama)+'</div><div class="ln"></div><div class="big" id="jam2">--:--</div><div id="tgl2"></div><div class="hint">Silakan scan kartu Anda</div>';
+let lastAct=Date.now();
+const wake=()=>{lastAct=Date.now();$('#idle').style.display='none'};
+['keydown','click','touchstart','pointerdown'].forEach(e=>addEventListener(e,wake,true));
+setInterval(()=>{
+  const on=tab==='scan'&&tok&&Date.now()-lastAct>45000,el=$('#idle');
+  el.style.display=on?'flex':'none';
+  if(on){const n=new Date(Date.now()+off);$('#jam2').textContent=n.toLocaleTimeString('id-ID',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit',hour12:false});$('#tgl2').textContent=n.toLocaleDateString('id-ID',{timeZone:'Asia/Jakarta',dateStyle:'full'})}
+},1000);
+
+me&&tok?start():showLogin();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>

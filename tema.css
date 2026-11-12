@@ -81,3 +81,34 @@ dialog::backdrop{background:rgba(10,16,24,.5)}
 .konf{display:flex;gap:16px;align-items:center;padding:14px;margin:12px 0;border:2px solid var(--pr);border-radius:14px;background:var(--pr-s)}
 .konf img{width:84px;height:112px;object-fit:cover;border-radius:10px;border:2px solid var(--ak);flex:none}
 .konf b{display:block;font-family:var(--serif);font-size:24px;line-height:1.2;margin:2px 0}
+
+/* kerangka admin: menu di sisi kiri */
+#app.wide{max-width:none;margin:0;padding:0}
+.shell{display:flex;min-height:100vh}
+.side{width:240px;flex:none;background:var(--card);border-right:1px solid var(--bd);padding:14px 10px 24px;position:sticky;top:0;height:100vh;overflow-y:auto}
+.side .brand{padding:4px 6px 14px;border-bottom:2px solid var(--ak);margin-bottom:6px}
+.side .brand .nm{font-size:16px}
+.side nav{display:flex;flex-direction:column;gap:2px;border:0;padding:0;margin:0;overflow:visible}
+.side nav .grp{font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--mu);padding:14px 10px 4px;font-weight:700}
+.side nav button,.side nav button.on{width:100%;text-align:left;border:0;border-left:3px solid transparent;border-radius:6px;padding:9px 12px;color:var(--tx);font-weight:500;font-size:14px;background:none}
+.side nav button:hover{background:var(--pr-s)}
+.side nav button.on{background:var(--pr-s);border-left-color:var(--pr);color:var(--pr);font-weight:700}
+.main{flex:1;min-width:0;padding:0 22px 48px}
+.topm{display:flex;justify-content:space-between;align-items:center;gap:8px 12px;flex-wrap:wrap;padding:14px 0;border-bottom:1px solid var(--bd);margin-bottom:14px}
+.topm h2{margin:0;font-size:21px;color:var(--pr)}
+.tl{display:flex;align-items:center;gap:10px}
+#burger{display:none}
+.scrim{display:none}
+@media(max-width:860px){
+ .side{position:fixed;left:0;top:0;z-index:30;transform:translateX(-102%);transition:transform .2s;box-shadow:0 0 40px rgba(0,0,0,.3);width:78%;max-width:290px}
+ .side.open{transform:none}
+ .scrim.on{display:block;position:fixed;inset:0;background:rgba(10,16,24,.45);z-index:25}
+ #burger{display:inline-block}
+ .main{padding:0 12px 40px}
+}
+/* tabel jam pelajaran per kelas */
+.mx{border-collapse:collapse;min-width:100%}
+.mx th,.mx td{border:1px solid var(--bd);text-align:center;padding:6px 5px;font-size:13px;white-space:nowrap}
+.mx th{background:var(--pr-s)}.mx td.n{text-align:left}
+.mx .mh{color:var(--ok);font-weight:700}.mx .mt{color:var(--er);font-weight:700;background:rgba(220,38,38,.08)}.mx .mt sup{font-size:10px}.mx .mm{color:var(--mu)}
+@media print{.side,.topm,.scrim{display:none!important}}

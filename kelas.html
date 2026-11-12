@@ -34,6 +34,7 @@ input,select{font:inherit;width:100%;padding:11px;border:1px solid var(--bd);bor
 .bar{position:sticky;bottom:0;background:var(--card);border-top:2px solid var(--ak,var(--bd));padding:10px 4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .warn{background:rgba(234,179,8,.15);border:1px solid rgba(234,179,8,.5);border-radius:10px;padding:10px;margin:8px 0;font-size:14px}
 .okc{background:rgba(34,197,94,.14);border:1px solid rgba(34,197,94,.45);border-radius:10px;padding:10px;margin:8px 0}
+.kt{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}.kt button{font:inherit;font-size:12px;padding:5px 11px;border-radius:999px;border:1px solid var(--bd);background:var(--card);color:var(--tx);cursor:pointer}.kt button.on{background:var(--er);color:#fff;border-color:var(--er)}
 .riw{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--bd);font-size:14px}
 </style>
 <link rel="stylesheet" href="tema.css">
@@ -59,17 +60,7 @@ const run=f=>async(...a)=>{try{await f(...a)}catch(e){toast(e.message,1)}};
 const V=h=>$('#v').innerHTML=h;
 
 /* Login */
-function drawLogin(){
-  $('#app').innerHTML=`<div id="login"><div class="lg"><div class="lg-brand">${brandLogo(84)}<h1>${esc(TEMA.nama)}</h1><div class="ln"></div><p>${esc(TEMA.slogan)}</p></div><div class="lg-form"><h2 style="margin:0 0 4px;font-size:21px">Presensi Kelas</h2><div class="mu">Masuk dengan akun guru dari sekolah</div><br>
-  ${window.PRESENSI_API?'':`<input id="lApi" placeholder="URL API (Apps Script)" value="${esc(API)}">`}<input id="lU" placeholder="Username (NIP)" autocomplete="username"><input id="lP" type="password" placeholder="Password" autocomplete="current-password">
-  <button class="b" style="width:100%" id="lGo">Masuk</button></div></div></div>`;
-  $('#lP').onkeydown=e=>{if(e.key==='Enter')$('#lGo').click()};
-  $('#lGo').onclick=run(async()=>{
-    if(!window.PRESENSI_API){API=$('#lApi').value.trim();localStorage.setItem('api',API)}
-    const r=await api('login',{u:$('#lU').value,p:$('#lP').value});
-    tok=r.t;me=r.u;sessionStorage.setItem('tok',tok);sessionStorage.setItem('me',JSON.stringify(me));app();
-  });
-}
+function drawLogin(){location.replace('index.html?m=sesi')} // login terpusat di index.html
 async function keluar(diam){if(!diam&&tok)try{await api('logout')}catch(e){}tok='';me=null;sessionStorage.clear();drawLogin()}
 
 /* Aplikasi */
@@ -107,8 +98,8 @@ async function buka(){
   const d=await api('kelas_siswa',{jenis:S.jenis,ref:S.ref});S.data=d;
   $('#dlM').innerHTML=d.saranMapel.map(m=>`<option value="${esc(m)}">`).join('');
   const ada=d.sesi.find(x=>x.jam===S.jam);S.tidak={};S.lain=null;
-  if(ada){ada.tidak.forEach(n=>S.tidak[n]=1);if(!S.mapel)S.mapel=ada.mapel;if(me.peran==='Guru'&&ada.nip!==me.nip)S.lain=ada.guru}
-  else d.siswa.forEach(s=>{if(s.g.izin)S.tidak[s.nis]=1}); // siswa yang sudah tercatat sakit/izin ditandai tidak hadir lebih dulu
+  if(ada){Object.assign(S.tidak,Array.isArray(ada.tidak)?Object.fromEntries(ada.tidak.map(n=>[n,'Tanpa keterangan'])):ada.tidak);if(!S.mapel)S.mapel=ada.mapel;if(me.peran==='Guru'&&ada.nip!==me.nip)S.lain=ada.guru}
+  else d.siswa.forEach(s=>{if(s.g.izin)S.tidak[s.nis]=s.g.izin}); // siswa yang sudah tercatat sakit/izin ditandai tidak hadir lebih dulu
   if(!S.mapel&&d.mapel)S.mapel=d.mapel;
   $('#fM').value=S.mapel;daftar(!!ada);
   $('#rw').scrollIntoView({behavior:'smooth',block:'start'});
@@ -118,19 +109,24 @@ function badge(g){
   if(g.masuk)return`<span class="pl ok">Gerbang ${esc(g.masuk)}${g.pulang?' • pulang '+esc(g.pulang):''}</span>`;
   return'<span class="pl wn">Belum scan gerbang</span>';
 }
-const baris=s=>`<div class="srow ${S.tidak[s.nis]?'t':'h'}" data-n="${esc(s.nis)}"><div><b>${esc(s.nama)}</b><div class="mu">NIS ${esc(s.nis)}${s.kelas&&S.jenis==='Pilihan'?' • '+esc(s.kelas):''}</div>${badge(s.g)}</div><button class="tg" tabindex="-1">${S.tidak[s.nis]?'✗':'✓'}</button></div>`;
+const KT=['Tanpa keterangan','Sakit','Izin'];
+const baris=s=>{const k=S.tidak[s.nis],gb=s.g&&s.g.masuk&&!s.g.pulang;
+  return `<div class="srow ${k?'t':'h'}" data-n="${esc(s.nis)}"><div><b>${esc(s.nama)}</b><div class="mu">NIS ${esc(s.nis)}${s.kelas&&S.jenis==='Pilihan'?' • '+esc(s.kelas):''}</div>${badge(s.g)}${k?`<div class="kt">${gb?'<span class="mu" style="width:100%">⚠ Sudah scan di gerbang. Pilih keterangan:</span>':''}${KT.map(x=>`<button data-k="${x}" class="${x===k?'on':''}">${x}</button>`).join('')}</div>`:''}</div><button class="tg" tabindex="-1">${k?'✗':'✓'}</button></div>`};
 function hitung(){const n=S.data.siswa.length,t=S.data.siswa.filter(s=>S.tidak[s.nis]).length;$('#cnt').innerHTML=`<b>Hadir ${n-t}</b> • <span style="color:var(--er)">Tidak hadir ${t}</span> <span class="mu">dari ${n}</span>`}
 function daftar(sudahAda){
   const d=S.data;
   $('#rw').innerHTML=`<div class="card"><b>${esc(d.label)}</b> <span class="mu">jam ke-${S.jam} • ${esc(S.mapel)} • ${d.siswa.length} siswa</span>
   ${S.lain?`<div class="warn">Sesi ini sudah diisi oleh <b>${esc(S.lain)}</b>. Anda tidak bisa mengubahnya; hubungi admin bila perlu koreksi.</div>`:''}
   ${sudahAda&&!S.lain?'<div class="warn">Presensi jam ini sudah pernah dikirim. Mengirim lagi akan <b>menggantikan</b> isi sebelumnya.</div>':''}
-  <div class="mu">Ketuk nama untuk mengubah ✓ (hadir) menjadi ✗ (tidak hadir). Siswa yang tercatat sakit/izin sudah ditandai ✗.</div>
+  <div class="mu">Ketuk nama untuk mengubah ✓ (hadir) menjadi ✗ (tidak hadir), lalu pilih keterangannya: Tanpa keterangan, Sakit, atau Izin. Siswa yang tercatat sakit/izin sudah ditandai ✗.</div>
   <div id="sl">${d.siswa.map(baris).join('')||'<div class="mu" style="padding:12px 0">Daftar siswa kosong.</div>'}</div>
   <div class="bar"><span id="cnt"></span><span style="flex:1"></span><button class="s" id="sAll">Semua hadir</button><button class="b" id="sKirim" ${S.lain?'disabled':''}>Kirim presensi</button></div></div>`;
   hitung();
-  $('#sl').onclick=e=>{const r=e.target.closest('.srow');if(!r)return;const n=r.dataset.n;S.tidak[n]=!S.tidak[n];if(!S.tidak[n])delete S.tidak[n];
-    r.className='srow '+(S.tidak[n]?'t':'h');r.querySelector('.tg').textContent=S.tidak[n]?'✗':'✓';hitung()};
+  $('#sl').onclick=e=>{const r=e.target.closest('.srow');if(!r)return;const n=r.dataset.n,s=S.data.siswa.find(x=>x.nis===n),kb=e.target.closest('.kt button');
+    if(kb)S.tidak[n]=kb.dataset.k;
+    else if(S.tidak[n])delete S.tidak[n];
+    else S.tidak[n]=s.g.izin||'Tanpa keterangan';
+    r.outerHTML=baris(s);hitung()};
   $('#sAll').onclick=()=>{S.tidak={};daftar(sudahAda)};
   $('#sKirim').onclick=run(kirim);
 }
@@ -142,7 +138,7 @@ async function kirim(){
   try{
     const r=await api('kelas_simpan',{jenis:S.jenis,ref:S.ref,jam:S.jam,mapel:S.mapel,tidak:t});
     localStorage.setItem('lastJam',S.jam);
-    const dft=(L,j)=>L.map(x=>`<li>${esc(x.nama)} (${esc(x.kelas)})${j?' • gerbang '+esc(x.jam):''}</li>`).join('');
+    const dft=(L,j)=>L.map(x=>`<li>${esc(x.nama)} (${esc(x.kelas)})${j?' • gerbang '+esc(x.jam)+' • '+esc(x.ket||'Tanpa keterangan'):''}</li>`).join('');
     $('#rw').innerHTML=`<div class="card"><div class="okc"><b>Tersimpan.</b> ${esc(S.data.label)} • jam ke-${S.jam} • ${esc(S.mapel)}<br>Hadir <b>${r.hadir}</b> • Tidak hadir <b>${r.tidak}</b> dari ${r.jumlah}${r.diperbarui?' <span class="mu">(menggantikan isian sebelumnya)</span>':''}</div>
     ${r.belumGerbang.length?`<div class="warn"><b>Ada di kelas tetapi belum scan di gerbang:</b><ul>${dft(r.belumGerbang)}</ul>Mohon informasikan ke petugas gerbang.</div>`:''}
     ${r.gerbangTidakAda.length?`<div class="warn"><b>Sudah scan di gerbang tetapi tidak ada di kelas:</b><ul>${dft(r.gerbangTidakAda,1)}</ul>Mohon informasikan ke petugas gerbang atau wali kelas.</div>`:''}
