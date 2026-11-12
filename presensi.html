@@ -51,7 +51,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td{padding:5px 3px;bord
 
 <div id="app">
 <header class="hd"><div class="brand" id="hb"></div><div style="text-align:right"><div id="jam">--:--:--</div><div class="mu" id="tgl"></div></div></header>
-<div class="bar2 mu"><span id="usr"></span><span id="qi"></span><span class="sp"></span><span id="sj" class="pill wn">Memuat</span><button class="s" id="sync">Sinkron</button><a id="adm" href="admin.html" class="s" style="display:none;text-decoration:none">Admin</a><button class="s" id="out">Keluar</button></div>
+<div class="bar2 mu"><span id="usr"></span><span id="qi"></span><span class="sp"></span><span id="sj" class="pill wn">Memuat</span><button class="s" id="sync">Sinkron</button><a id="adm" href="admin.html" class="s" style="display:none;text-decoration:none">Admin</a><button class="s" id="pw">Ganti password</button><button class="s" id="out">Keluar</button></div>
 <nav id="tabs"></nav>
 <div id="hasil"><span class="mu">Menunggu scan...</span></div>
 
@@ -123,6 +123,7 @@ $('#lGo').onclick=async()=>{
   }catch(e){$('#lm').textContent=e.message}
 };
 $('#lP').onkeydown=e=>{if(e.key==='Enter')$('#lGo').click()};
+$('#pw').onclick=()=>gantiPassword(api,m=>tampil('ok',m,''),me&&me.peran);
 $('#out').onclick=async()=>{try{await api('logout')}catch(e){}D=null;kv('D',null);tok='';sessionStorage.clear();showLogin()};
 
 /* Sinkron data */
@@ -137,7 +138,9 @@ async function sync(full){
     await kv('D',D);buildMap()}
   $('#tgl').textContent=r.tgl;ringkas();
 }
-function buildMap(){M={};D.orang.forEach(p=>{M[p.nis]=p;M[p.kode]=p})}
+let MR={}; // kode kartu RFID (ternormalisasi) -> orang
+const normRfid=s=>String(s).toUpperCase().replace(/[^0-9A-Z]/g,'').replace(/^0+/,'');
+function buildMap(){M={};MR={};D.orang.forEach(p=>{M[p.nis]=p;M[p.kode]=p;if(p.rfid)MR[p.rfid]=p})}
 async function start(){
   if(me&&me.peran==='Guru'){location.replace('kelas.html');return}
   $('#usr').textContent=me.nama;$('#adm').style.display=me.peran==='Admin'?'inline':'none';
@@ -176,7 +179,8 @@ function tampil(c,t,m,p){
 function mark(kode,metode){
   kode=String(kode).trim();if(!kode||!D||!D.orang)return;
   if(last[kode]&&Date.now()-last[kode]<3000)return;last[kode]=Date.now();
-  const p=M[kode];
+  let p=M[kode];
+  if(!p&&metode==='barcode'){const rf=normRfid(kode);if(rf&&MR[rf]){p=MR[rf];metode='rfid'}} // kartu RFID: kode kartu dicocokkan ke kartu terdaftar
   if(!p){say('Tidak dikenali');return tampil('err','Tidak dikenali',kode)}
   if(!D.st.metode_aktif.split(',').includes(metode)){return tampil('err','Metode tidak diaktifkan',metode)}
   const h=jkt(),m=$('#mode').value,jenis=m==='auto'?(h>=D.st.jam_mulai_pulang?'Pulang':'Masuk'):m;
@@ -222,7 +226,7 @@ function ringkas(){
 /* Tab, scanner, kamera */
 function drawTabs(){
   const m=D.st.metode_aktif.split(','),T=[];
-  if(m.includes('barcode'))T.push(['scan','Scan Kartu']);
+  if(m.includes('barcode')||m.includes('rfid'))T.push(['scan','Scan Kartu']);
   if(m.includes('barcode')||m.includes('qr'))T.push(['cam','Kamera']);
   if(m.includes('wajah'))T.push(['wajah','Wajah']);
   if(m.includes('nis')&&me&&['Admin','Petugas'].includes(me.peran))T.push(['nis','Input NIS'+(kunciMati()?'':' 🔒')]);

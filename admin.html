@@ -80,18 +80,18 @@ async function keluar(silent){
 }
 
 /* Kerangka */
-const PG={dash:['Dashboard',pDash],siswa:['Siswa',pSiswa],guru:['Guru',pGuru],kelas:['Kelas',pKelas],petugas:['Petugas',pPetugas],set:['Pengaturan',pSet],izin:['Izin/Sakit',pIzin],kp:['Kelas Pilihan',pKP],pk:['Presensi Kelas',pPK],lap:['Laporan',pLap],notif:['Notifikasi',pNotif],dev:['Perangkat',pDev],log:['Log',pLog]};
+const PG={dash:['Dashboard',pDash],siswa:['Siswa',pSiswa],guru:['Guru',pGuru],kelas:['Kelas',pKelas],rfid:['Kartu RFID',pRfid],petugas:['Petugas',pPetugas],set:['Pengaturan',pSet],izin:['Izin/Sakit',pIzin],kp:['Kelas Pilihan',pKP],pk:['Presensi Kelas',pPK],lap:['Laporan Gerbang',pLap],notif:['Notifikasi',pNotif],dev:['Perangkat',pDev],log:['Log',pLog]};
 function drawApp(){
   if(me.peran==='Guru'){location.replace('kelas.html');return}      // guru memakai halaman Presensi Kelas
   if(me.peran==='Petugas'){location.replace('presensi.html');return} // petugas memakai halaman presensi
-  const ks=me.peran==='Admin'?Object.keys(PG):me.peran==='Wali'?['dash','izin','pk','lap']:['dash'];
-  const GR=[['Utama',['dash']],['Data',['siswa','guru','kelas','kp','petugas']],['Presensi',['izin','pk','lap','notif']],['Sistem',['set','dev','log']]];
+  const ks=me.peran==='Admin'?Object.keys(PG):(me.peran==='Wali'||me.peran==='BK')?['dash','izin','pk','lap']:['dash'];
+  const GR=[['Utama',['dash']],['Data',['siswa','guru','kelas','kp','rfid','petugas']],['Presensi',['izin','pk','lap','notif']],['Sistem',['set','dev','log']]];
   const nav=GR.map(g=>{const it=g[1].filter(k=>ks.includes(k));return it.length?`<div class="grp">${g[0]}</div>`+it.map(k=>`<button data-p="${k}">${PG[k][0]}</button>`).join(''):''}).join('');
   $('#app').className='wide';
   $('#app').innerHTML=`<div class="shell"><aside class="side" id="side"><div class="brand">${brandLogo(42)}<div><div class="nm">${esc(TEMA.nama)}</div><div class="sl">${esc(TEMA.slogan)}</div></div></div><nav>${nav}</nav></aside><div class="scrim" id="scrim"></div>
   <div class="main"><div class="topm"><div class="tl"><button class="s" id="burger">☰ Menu</button><h2 id="ttl"></h2></div><div class="btns"><span class="mu">${esc(me.nama)} · ${esc(me.peran)}${me.kelas?' '+esc(me.kelas):''}</span><a class="s" href="presensi.html" style="text-decoration:none">Halaman Presensi</a> <button class="s" id="pw">Ganti password</button> <button class="s" id="out">Keluar</button></div></div><div id="view"></div></div></div>`;
   $('#out').onclick=()=>keluar();
-  $('#pw').onclick=run(async()=>{const l=prompt('Password lama');if(!l)return;const b=prompt('Password baru (minimal 8 karakter)');if(!b)return;await api('ganti_password',{lama:l,baru:b});toast('Password diganti')});
+  $('#pw').onclick=()=>gantiPassword(api,toast,me.peran);
   const tutup=()=>{$('#side').classList.remove('open');$('#scrim').classList.remove('on')};
   $('#burger').onclick=()=>{$('#side').classList.add('open');$('#scrim').classList.add('on')};$('#scrim').onclick=tutup;
   $('nav').onclick=e=>{const b=e.target.closest('button[data-p]');if(b){goto(b.dataset.p);tutup()}};
@@ -159,10 +159,10 @@ function formSiswa(s){
   const baru=!s;s=s||{Status:'Aktif'};
   dlgOpen(`<b>${baru?'Tambah':'Edit'} siswa</b>${field('fNis','NIS',s.NIS,'text',baru?'':'readonly')}${field('fNisn','NISN',s.NISN)}${field('fNama','Nama lengkap',s.Nama)}
   <label>Kelas</label><input id="fKel" list="dl" value="${esc(s.ID_Kelas||'')}"><datalist id="dl">${KL.map(k=>`<option value="${esc(k.ID_Kelas)}">`).join('')}</datalist>
-  ${field('fBar','Kode barcode (kosong = NIS)',s.Kode_Barcode)}${field('fWa','WA orang tua',s.WA_Ortu)}${field('fEm','Email orang tua',s.Email_Ortu)}
+  ${field('fBar','Kode barcode (kosong = NIS)',s.Kode_Barcode)}${field('fRf','Kode kartu RFID (klik kolom ini, lalu tempelkan kartu pada pembaca)',s.Kode_RFID)}${field('fWa','WA orang tua',s.WA_Ortu)}${field('fEm','Email orang tua',s.Email_Ortu)}
   <label>Status</label><select id="fSt">${opts(['Aktif','Nonaktif'],s.Status)}</select><button class="b" id="fOk">Simpan</button>`);
   $('#fOk').onclick=run(async()=>{
-    await api('siswa_save',{baru,v:{NIS:$('#fNis').value,NISN:$('#fNisn').value,Nama:$('#fNama').value,ID_Kelas:$('#fKel').value,Kode_Barcode:$('#fBar').value,WA_Ortu:$('#fWa').value,Email_Ortu:$('#fEm').value,Status:$('#fSt').value}});
+    await api('siswa_save',{baru,v:{NIS:$('#fNis').value,NISN:$('#fNisn').value,Nama:$('#fNama').value,ID_Kelas:$('#fKel').value,Kode_Barcode:$('#fBar').value,Kode_RFID:$('#fRf').value,WA_Ortu:$('#fWa').value,Email_Ortu:$('#fEm').value,Status:$('#fSt').value}});
     $('#dlg').close();toast('Tersimpan');pSiswa();
   });
 }
@@ -202,14 +202,14 @@ function thumb(f){return new Promise((ok,no)=>{const im=new Image();im.onload=()
 /* Guru */
 async function pGuru(){
   const L=(await api('guru_list')).v;
-  V(`<div class="card"><b>Tambah / ubah guru</b><div class="row">${field('gN','NIP')}${field('gA','Nama')}${field('gK','Kode barcode (kosong = NIP)')}${field('gW','WA')}</div>
+  V(`<div class="card"><b>Tambah / ubah guru</b><div class="row">${field('gN','NIP')}${field('gA','Nama')}${field('gK','Kode barcode (kosong = NIP)')}${field('gR','Kode kartu RFID')}${field('gW','WA')}</div>
   <label>Status</label><select id="gS">${opts(['Aktif','Nonaktif'])}</select><button class="b" id="gOk">Simpan</button></div>
   <div class="card"><b>Impor guru</b><div class="mu">Tempel dari Excel, kolom: NIP, Nama, Kode barcode, WA (satu baris per guru).</div><textarea id="gI" rows="4"></textarea><button class="b" id="gImp">Impor</button><div class="mu" id="gH"></div></div>
   <div class="card"><b>Akun guru untuk presensi kelas</b><div class="mu">Membuat akun (username = NIP, peran Guru) untuk semua guru aktif yang belum punya akun, dengan password acak. Password hanya ditampilkan SEKALI lewat berkas yang diunduh. Bagikan ke tiap guru dan minta segera diganti.</div><br><button class="b" id="gAkun">Buat akun semua guru</button></div>
   <div class="card wrap"><b>Daftar guru</b> <span class="mu">${L.length} orang</span><table class="stk" id="tg"><tr><th>NIP</th><th>Nama</th><th>Kode</th><th>Status</th><th></th></tr>${L.map((g,i)=>`<tr><td>${esc(g.NIP)}</td><td>${esc(g.Nama)}</td><td>${esc(g.Kode_Barcode)}</td><td>${esc(g.Status)}</td><td><button class="s" data-i="${i}">Edit</button></td></tr>`).join('')}</table></div>`);
   let baru=true;
-  $('#tg').onclick=e=>{if(e.target.dataset.i){const g=L[e.target.dataset.i];$('#gN').value=g.NIP;$('#gN').readOnly=true;$('#gA').value=g.Nama;$('#gK').value=g.Kode_Barcode;$('#gW').value=g.WA;$('#gS').value=g.Status;baru=false;scrollTo(0,0)}};
-  $('#gOk').onclick=run(async()=>{await api('guru_save',{baru,v:{NIP:$('#gN').value,Nama:$('#gA').value,Kode_Barcode:$('#gK').value,WA:$('#gW').value,Status:$('#gS').value}});toast('Tersimpan');pGuru()});
+  $('#tg').onclick=e=>{if(e.target.dataset.i){const g=L[e.target.dataset.i];$('#gN').value=g.NIP;$('#gN').readOnly=true;$('#gA').value=g.Nama;$('#gK').value=g.Kode_Barcode;$('#gR').value=g.Kode_RFID||'';$('#gW').value=g.WA;$('#gS').value=g.Status;baru=false;scrollTo(0,0)}};
+  $('#gOk').onclick=run(async()=>{await api('guru_save',{baru,v:{NIP:$('#gN').value,Nama:$('#gA').value,Kode_Barcode:$('#gK').value,Kode_RFID:$('#gR').value,WA:$('#gW').value,Status:$('#gS').value}});toast('Tersimpan');pGuru()});
   $('#gAkun').onclick=run(async()=>{
     if(!confirm('Buat akun untuk semua guru aktif yang belum punya akun?'))return;
     const r=await api('guru_akun_massal');
@@ -228,18 +228,27 @@ async function pGuru(){
 /* Kelas */
 async function pKelas(){
   KL=(await api('kelas_list')).v;
-  V(`<div class="card"><b>Tambah / ubah kelas</b><div class="row">${field('kId','ID kelas (mis. 7A)')}${field('kTg','Tingkat')}${field('kWl','Wali kelas')}${field('kTa','Tahun ajaran','2026/2027')}</div>
+  V(`<div class="card"><b>Akun wali kelas</b><div class="mu">Membuat akun untuk setiap kelas yang belum punya wali. Contoh kelas X-1: username <b>walix1</b>, password <b>walix1</b>. Wali kelas dapat menggantinya lewat tombol Ganti password, dan nama wali bisa diubah di menu Petugas.</div><br><button class="b" id="kWali">Buat akun wali untuk semua kelas</button></div>
+  <div class="card"><b>Tambah / ubah kelas</b><div class="row">${field('kId','ID kelas (mis. 7A)')}${field('kTg','Tingkat')}${field('kWl','Wali kelas')}${field('kTa','Tahun ajaran','2026/2027')}</div>
   <label>Status</label><select id="kSt">${opts(['Aktif','Nonaktif'])}</select><button class="b" id="kOk">Simpan</button></div>
   <div class="card wrap"><table class="stk" id="tk"><tr><th>ID</th><th>Tingkat</th><th>Wali</th><th>TA</th><th>Status</th><th></th></tr>${KL.map((k,i)=>`<tr><td>${esc(k.ID_Kelas)}</td><td>${esc(k.Tingkat)}</td><td>${esc(k.Wali_Kelas)}</td><td>${esc(k.Tahun_Ajaran)}</td><td>${esc(k.Status)}</td><td><button class="s" data-i="${i}">Edit</button></td></tr>`).join('')}</table></div>`);
   $('#tk').onclick=e=>{if(e.target.dataset.i){const k=KL[e.target.dataset.i];$('#kId').value=k.ID_Kelas;$('#kTg').value=k.Tingkat;$('#kWl').value=k.Wali_Kelas;$('#kTa').value=k.Tahun_Ajaran;$('#kSt').value=k.Status;scrollTo(0,0)}};
+  $('#kWali').onclick=run(async()=>{
+    if(!confirm('Buat akun wali kelas untuk semua kelas yang belum punya?'))return;
+    const r=await api('wali_akun_massal');
+    if(!r.v.length)return toast('Semua kelas sudah punya akun wali ('+r.lewat+' dilewati)');
+    const csv='Username,Kelas,Password\n'+r.v.map(x=>'"'+x.username+'","'+x.kelas+'","'+x.password+'"').join('\n');
+    const l=document.createElement('a');l.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));l.download='akun-wali-kelas.csv';l.click();
+    toast(r.v.length+' akun wali dibuat. Daftar username dan password ada di berkas akun-wali-kelas.csv');
+  });
   $('#kOk').onclick=run(async()=>{await api('kelas_save',{v:{ID_Kelas:$('#kId').value,Tingkat:$('#kTg').value,Wali_Kelas:$('#kWl').value,Tahun_Ajaran:$('#kTa').value,Status:$('#kSt').value}});toast('Tersimpan');pKelas()});
 }
 
 /* Petugas */
 async function pPetugas(){
   const [pl,kl]=await Promise.all([api('petugas_list'),api('kelas_list')]),L=pl.v;KL=kl.v;
-  V(`<div class="card"><b>Tambah / ubah akun</b><div class="row">${field('uU','Username')}${field('uN','Nama')}${field('uP','Password (min 8; kosong = tidak diubah)','','password')}${field('uNip','NIP (khusus Guru; harus ada di menu Guru)')}</div>
-  <div class="row"><div><label>Peran</label><select id="uR">${opts(['Petugas','Wali','Guru','Admin'])}</select></div><div><label>Kelas (khusus Wali)</label><select id="uK"><option value="">-</option>${KL.map(k=>`<option>${esc(k.ID_Kelas)}</option>`).join('')}</select></div><div><label>Status</label><select id="uS">${opts(['Aktif','Nonaktif'])}</select></div></div><button class="b" id="uOk">Simpan</button></div>
+  V(`<div class="card"><b>Tambah / ubah akun</b><div class="row">${field('uU','Username')}${field('uN','Nama')}${field('uP','Password (min 6, Admin min 8; kosong = tidak diubah)','','password')}${field('uNip','NIP (khusus Guru; harus ada di menu Guru)')}</div>
+  <div class="row"><div><label>Peran</label><select id="uR">${opts(['Petugas','Wali','Guru','BK','Admin'])}</select></div><div><label>Kelas (khusus Wali)</label><select id="uK"><option value="">-</option>${KL.map(k=>`<option>${esc(k.ID_Kelas)}</option>`).join('')}</select></div><div><label>Status</label><select id="uS">${opts(['Aktif','Nonaktif'])}</select></div></div><button class="b" id="uOk">Simpan</button></div>
   <div class="card wrap"><table class="stk" id="tu"><tr><th>Username</th><th>Nama</th><th>Peran / Kelas</th><th>Status</th><th>Login terakhir</th><th></th></tr>${L.map((p,i)=>`<tr><td>${esc(p.Username)}</td><td>${esc(p.Nama)}</td><td>${esc(p.Peran)}${p.Kelas?' '+esc(p.Kelas):''}${p.NIP?' '+esc(p.NIP):''}</td><td>${esc(p.Status)}</td><td>${esc(p.Login_Terakhir)}</td><td><button class="s" data-i="${i}">Edit</button></td></tr>`).join('')}</table></div>`);
   $('#tu').onclick=e=>{if(e.target.dataset.i){const p=L[e.target.dataset.i];$('#uU').value=p.Username;$('#uN').value=p.Nama;$('#uR').value=p.Peran;$('#uK').value=p.Kelas||'';$('#uNip').value=p.NIP||'';$('#uS').value=p.Status;scrollTo(0,0)}};
   $('#uOk').onclick=run(async()=>{await api('petugas_save',{v:{Username:$('#uU').value,Nama:$('#uN').value,Password:$('#uP').value,Peran:$('#uR').value,Kelas:$('#uK').value,NIP:$('#uNip').value,Status:$('#uS').value}});toast('Tersimpan');pPetugas()});
@@ -247,7 +256,7 @@ async function pPetugas(){
 
 /* Pengaturan */
 async function pSet(){
-  const [ps,jl]=await Promise.all([api('pengaturan_get'),api('jadwal_list')]),s=ps.v,JL=jl.v,H=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'],M={barcode:'Barcode',qr:'QR Code',nis:'Input NIS manual (khusus petugas, dengan konfirmasi)',wajah:'Wajah',sidik:'Sidik jari (perangkat eksternal)'};
+  const [ps,jl]=await Promise.all([api('pengaturan_get'),api('jadwal_list')]),s=ps.v,JL=jl.v,H=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'],M={barcode:'Barcode',rfid:'RFID (tempelkan kartu pada pembaca)',qr:'QR Code',nis:'Input NIS manual (khusus petugas, dengan konfirmasi)',wajah:'Wajah',sidik:'Sidik jari (perangkat eksternal)'};
   V(`<div class="card"><b>Jam presensi</b><div class="row">${field('sM','Jam mulai',s.jam_mulai,'time')}${field('sB','Batas terlambat',s.jam_batas_terlambat,'time')}${field('sE','Jam berakhir',s.jam_selesai,'time')}${field('sP','Mulai jam pulang',s.jam_mulai_pulang,'time')}</div>
   <label>Hari aktif sekolah</label><div class="chk">${H.map((h,i)=>`<label><input type="checkbox" class="hr" value="${i+1}" ${s.hari_aktif.split(',').includes(String(i+1))?'checked':''} style="width:auto;margin:0 4px 0 8px">${h}</label>`).join('')}</div><br>
   ${field('sL','Hari libur (yyyy-mm-dd, pisah koma)',s.hari_libur)}
@@ -309,6 +318,56 @@ async function pIzin(){
     toast(r.n+' hari tercatat'+(r.lewat?', '+r.lewat+' dilewati':''));$('#iT').value='';muatDaftar();
   });
   await muatSiswa();await muatDaftar();
+}
+
+/* Kartu RFID: daftar cepat per kelas + impor */
+const normRfid=s=>String(s).toUpperCase().replace(/[^0-9A-Z]/g,'').replace(/^0+/,'');
+let RF={L:[],q:[],i:0,on:false};
+async function pRfid(){
+  KL=(await api('kelas_list')).v.filter(k=>k.Status!=='Nonaktif');RF={L:[],q:[],i:0,on:false};
+  V(`<div class="card"><b>Daftarkan kartu RFID</b>
+  <div class="mu">Pilih kelas (atau Guru), tekan Mulai, lalu tempelkan kartu satu per satu pada pembaca RFID sesuai nama yang tampil. Setiap kartu langsung tersimpan dan layar pindah ke orang berikutnya yang belum punya kartu. Kolom isian harus aktif (kursor berkedip) agar kode dari pembaca masuk.</div><br>
+  <div class="row"><div><label>Kelas</label><select id="rfK">${KL.map(k=>`<option value="${esc(k.ID_Kelas)}">${esc(k.Nama_Kelas||k.ID_Kelas)}</option>`).join('')}<option value="Guru">Guru</option></select></div></div>
+  <button class="b" id="rfGo">Mulai</button>
+  <div id="rfBox" style="display:none;margin-top:14px"><div class="mu" id="rfProg"></div><div class="serif" style="font-size:26px;margin:6px 0" id="rfNow"></div><div class="mu" id="rfSub"></div>
+  <input id="rfIn" placeholder="Tempelkan kartu pada pembaca..." autocomplete="off" style="font-size:20px;text-align:center;margin-top:10px">
+  <button class="s" id="rfLewat">Lewati orang ini</button> <span id="rfMsg" style="font-size:13px;margin-left:6px"></span></div></div>
+  <div class="card"><b>Impor kode kartu dari Excel</b><div class="mu">Dua kolom: NIS (atau NIP guru) dan kode kartu. Tempel dari Excel atau pilih berkas.</div><br>
+  <input id="rfF" type="file" accept=".xlsx,.xls,.csv"><textarea id="rfT" rows="3" placeholder="12345&#9;0012345678"></textarea><div class="mu" id="rfPv"></div><button class="b" id="rfImp">Impor</button><div class="mu" id="rfH"></div></div>
+  <div class="card wrap"><b>Status kartu</b> <span class="mu" id="rfCnt"></span><table class="stk" id="tRf"></table></div>`);
+  const muat=async()=>{RF.L=(await api('rfid_list',{kelas:$('#rfK').value})).v;tabel()};
+  const tabel=()=>{
+    const n=RF.L.filter(x=>x.rfid).length;$('#rfCnt').textContent=n+' dari '+RF.L.length+' sudah punya kartu';
+    $('#tRf').innerHTML='<tr><th>Nama</th><th>NIS / NIP</th><th>Kode kartu</th><th></th></tr>'+RF.L.map(x=>`<tr><td>${esc(x.nama)}</td><td>${esc(x.id)}</td><td>${x.rfid?esc(x.rfid):'<span class="mu">belum ada</span>'}</td><td>${x.rfid?`<button class="s" data-h="${esc(x.id)}">Hapus</button>`:''}</td></tr>`).join('');stackify();
+  };
+  const next=()=>{
+    const q=RF.q,c=q[RF.i],tot=q.length;
+    $('#rfProg').textContent=c?`Terdaftar ${RF.i} dari ${tot} (sisa ${tot-RF.i})`:`Selesai: ${tot} kartu terdaftar pada sesi ini`;
+    $('#rfNow').textContent=c?c.nama:'Selesai ✓';$('#rfSub').textContent=c?('NIS/NIP '+c.id+' • '+c.kelas):'';
+    $('#rfIn').style.display=$('#rfLewat').style.display=c?'':'none';if(c)$('#rfIn').focus();
+  };
+  $('#rfK').onchange=run(async()=>{RF.on=false;$('#rfBox').style.display='none';await muat()});
+  $('#rfGo').onclick=run(async()=>{await muat();RF.q=RF.L.filter(x=>!x.rfid);RF.i=0;RF.on=true;$('#rfBox').style.display='block';$('#rfMsg').textContent='';
+    if(!RF.q.length){$('#rfProg').textContent='Semua sudah punya kartu.';$('#rfNow').textContent='Selesai ✓';$('#rfSub').textContent='';$('#rfIn').style.display=$('#rfLewat').style.display='none';return}
+    next()});
+  $('#rfIn').onkeydown=run(async e=>{
+    if(e.key!=='Enter')return;const uid=e.target.value.trim();e.target.value='';const c=RF.q[RF.i];if(!uid||!c)return;
+    const m=$('#rfMsg');
+    try{const r=await api('rfid_set',{id:c.id,uid});const o=RF.L.find(x=>x.id===c.id);if(o)o.rfid=r.rfid;m.style.color='var(--ok)';m.textContent='Tersimpan: '+c.nama;RF.i++;tabel();next()}
+    catch(er){m.style.color='var(--er)';m.textContent=er.message+' (coba kartu lain atau lewati)';e.target.focus()}
+  });
+  $('#rfIn').onblur=()=>setTimeout(()=>{if(RF.on&&document.activeElement===document.body&&$('#rfIn'))$('#rfIn').focus()},250);
+  $('#rfLewat').onclick=()=>{RF.i++;next()};
+  $('#tRf').onclick=run(async e=>{const id=e.target.dataset.h;if(!id)return;if(!confirm('Hapus kartu RFID milik ini?'))return;await api('rfid_hapus',{id});toast('Kartu dihapus');await muat()});
+  let IMP=[];
+  const set=r=>{IMP=r.filter(x=>x[0]&&x[1]&&!/^(nis|nip)$/i.test(String(x[0]).trim())).map(x=>[String(x[0]).trim(),String(x[1]).trim()]);$('#rfPv').textContent=IMP.length+' baris siap diimpor'};
+  $('#rfF').onchange=run(async e=>{const f=e.target.files[0];if(!f)return;const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});set(XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:false}))});
+  $('#rfT').oninput=e=>set(e.target.value.split('\n').map(l=>l.split(/\t|;|,/)));
+  $('#rfImp').onclick=run(async()=>{
+    if(!IMP.length)return toast('Belum ada data',1);
+    const r=await api('rfid_import',{rows:IMP});$('#rfH').innerHTML=`${r.tersimpan} kartu tersimpan.<br>${r.err.map(esc).join('<br>')}`;await muat();
+  });
+  await muat();
 }
 
 /* Kelas mapel pilihan */
@@ -385,25 +444,44 @@ async function pPK(){
 let LR=[],RR=[];
 const xl=(rows,nama)=>{if(!rows.length)return toast('Tidak ada data untuk diunduh',1);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Data');XLSX.writeFile(wb,nama+'.xlsx')};
 const cetak=id=>{const c=$(id);c.classList.add('cetak');window.print();setTimeout(()=>c.classList.remove('cetak'),600)};
+/* Cetak rekap bulanan (satu kelas per halaman) */
+let RKD=null;
+const BLN=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const labelBulan=b=>{const p=String(b).split('-');return (BLN[+p[1]-1]||'')+' '+p[0]};
+const namaKelas=id=>{const k=KL.find(x=>x.ID_Kelas===id);return k?(k.Nama_Kelas||id):(id||'Semua kelas')};
+function htmlRekap(r,kelas,bulan){
+  const tgl=new Date().toLocaleDateString('id-ID',{dateStyle:'long'});
+  return `<section class="pc"><div class="pch">${brandLogo(54)}<div><div class="nm">${esc(TEMA.nama)}</div><div><b>REKAP PRESENSI SISWA</b></div><div>Kelas ${esc(namaKelas(kelas))} &bull; Bulan ${esc(labelBulan(bulan))} &bull; Hari efektif ${r.hari} hari</div></div></div>
+  <table class="mx"><tr><th>No</th><th>NIS</th><th>Nama</th><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>%</th></tr>
+  ${r.v.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.nis)}</td><td class="n">${esc(x.nama)}</td><td>${x.h}</td><td>${x.t}</td><td>${x.i}</td><td>${x.s}</td><td>${x.a}</td><td>${x.pct}%</td></tr>`).join('')}</table>
+  <div class="ttd"><div>Wali Kelas<br><br><br><br>(........................)</div><div>Guru BK<br><br><br><br>(........................)</div><div>Dicetak ${esc(tgl)}<br>oleh ${esc(me.nama)}</div></div></section>`;
+}
+function cetakHtml(html){
+  let d=document.getElementById('pcAll');if(!d){d=document.createElement('div');d.id='pcAll';document.body.appendChild(d)}
+  d.innerHTML=html;d.className='cetak';d.style.display='block';
+  setTimeout(()=>{window.print();setTimeout(()=>{d.style.display='none';d.className=''},600)},50);
+}
+
 async function pLap(){
   KL=(await api('kelas_list')).v;
   const t=new Date().toLocaleDateString('sv-SE'),ko='<option value="">Semua kelas</option>'+KL.map(k=>`<option value="${esc(k.ID_Kelas)}">${esc(k.Nama_Kelas)}</option>`).join(''),
         op=(a,l)=>`<option value="">${l}</option>`+a.map(x=>`<option>${x}</option>`).join('');
-  V(`<div class="card" id="cLap"><b>Laporan presensi</b>
+  V(`<div class="card" id="cLap"><b>Laporan presensi gerbang</b>
   <div class="row">${field('fD','Dari',t,'date')}${field('fS','Sampai',t,'date')}<div><label>Kelas</label><select id="fK">${ko}</select></div>${field('fN','Nama / NIS')}</div>
   <div class="row"><div><label>Status</label><select id="fSt">${op(['Tepat waktu','Terlambat','Izin','Sakit','Pulang','Belum presensi','Dibatalkan'],'Semua')}</select></div>
-  <div><label>Metode</label><select id="fM">${op(['barcode','qr','nis','wajah','sidik','tanpa_kartu'],'Semua')}</select></div>
+  <div><label>Metode</label><select id="fM">${op(['barcode','rfid','qr','nis','wajah','sidik','tanpa_kartu'],'Semua')}</select></div>
   <div><label>Tipe</label><select id="fT"><option value="Siswa">Siswa</option><option value="Guru">Guru</option><option value="">Semua</option></select></div></div>
   <button class="b" id="bGo">Tampilkan</button> <button class="s" id="bXl">Excel</button> <button class="s" id="bPr">Cetak / PDF</button>
   <div class="mu" id="fInfo"></div><div class="wrap"><table id="tL"></table></div></div>
   <div class="card" id="cRek"><b>Rekap bulanan</b>
   <div class="row">${field('rB','Bulan',t.slice(0,7),'month')}<div><label>Kelas (atau Guru)</label><select id="rK">${ko}<option value="Guru">Guru</option></select></div></div>
-  <button class="b" id="rGo">Tampilkan</button> <button class="s" id="rXl">Excel</button> <button class="s" id="rPr">Cetak / PDF</button>
+  <button class="b" id="rGo">Tampilkan</button> <button class="s" id="rXl">Excel</button> <button class="s" id="rPr">Cetak kelas ini</button> <button class="s" id="rAll">Cetak semua kelas (1 kelas per halaman)</button>
   <div class="mu" id="rJ"></div><div class="wrap"><table id="tR"></table></div></div>
   ${me.peran==='Admin'?`<div class="card"><b>Tambah presensi manual</b><div class="mu">Untuk siswa atau guru yang lupa scan atau saat alat rusak. Alasan wajib diisi dan tercatat di log. Untuk sakit/izin, pakai menu Izin/Sakit.</div>
   <div class="row">${field('mN','NIS / NIP')}${field('mT','Tanggal',t,'date')}${field('mJ','Jam','07:00','time')}<div><label>Jenis</label><select id="mK"><option>Masuk</option><option>Pulang</option></select></div></div>
   ${field('mA','Alasan (mis. scanner rusak)')}<button class="b" id="mOk">Simpan</button></div>`:''}`);
-  if(me.peran==='Wali'){['fK','rK'].forEach(i=>{$('#'+i).value=me.kelas;$('#'+i).disabled=true})}
+  if(me.peran==='Wali'){['fK','rK'].forEach(i=>{$('#'+i).value=me.kelas;$('#'+i).disabled=true});$('#rAll').style.display='none'}
+  if(me.peran==='BK'){$('#fT').value='Siswa';$('#fT').disabled=true;[...$('#rK').options].forEach(o=>{if(o.value==='Guru')o.remove()})}
   $('#bGo').onclick=run(async()=>{
     const f={dari:$('#fD').value,sampai:$('#fS').value,kelas:$('#fK').value,nama:$('#fN').value,status:$('#fSt').value,metode:$('#fM').value,tipe:$('#fT').value};
     const r=await api('laporan',f);LR=r.v;
@@ -413,12 +491,17 @@ async function pLap(){
   $('#bXl').onclick=()=>xl(LR,'laporan-presensi-'+$('#fD').value);
   $('#bPr').onclick=()=>cetak('#cLap');
   $('#rGo').onclick=run(async()=>{
-    const r=await api('rekap',{bulan:$('#rB').value,kelas:$('#rK').value});RR=r.v.map(x=>({NIS:x.nis,Nama:x.nama,Kelas:x.kelas,Tepat_waktu:x.h,Terlambat:x.t,Izin:x.i,Sakit:x.s,Alpa:x.a,Persen:x.pct}));
+    const r=await api('rekap',{bulan:$('#rB').value,kelas:$('#rK').value});RKD={r:r,kelas:$('#rK').value,bulan:$('#rB').value};RR=r.v.map(x=>({NIS:x.nis,Nama:x.nama,Kelas:x.kelas,Tepat_waktu:x.h,Terlambat:x.t,Izin:x.i,Sakit:x.s,Alpa:x.a,Persen:x.pct}));
     $('#rJ').textContent=`Rekap ${$('#rB').value} • hari efektif siswa ${r.hari}, guru ${r.hariGuru}`;
     $('#tR').innerHTML='<tr><th>NIS</th><th>Nama</th><th>Kelas</th><th>H</th><th>T</th><th>I</th><th>S</th><th>A</th><th>%</th></tr>'+r.v.map(x=>`<tr><td>${esc(x.nis)}</td><td>${esc(x.nama)}</td><td>${esc(x.kelas)}</td><td>${x.h}</td><td>${x.t}</td><td>${x.i}</td><td>${x.s}</td><td>${x.a}</td><td>${x.pct}</td></tr>`).join('');
   });
   $('#rXl').onclick=()=>xl(RR,'rekap-'+$('#rB').value);
-  $('#rPr').onclick=()=>cetak('#cRek');
+  $('#rPr').onclick=()=>{if(!RKD)return toast('Tampilkan rekap dulu',1);cetakHtml(htmlRekap(RKD.r,RKD.kelas,RKD.bulan))};
+  $('#rAll').onclick=run(async()=>{
+    const b=$('#rB').value,ids=[...$('#rK').options].map(o=>o.value).filter(v=>v&&v!=='Guru');let h='';
+    for(let i=0;i<ids.length;i++){toast('Menyiapkan kelas '+ids[i]+' ('+(i+1)+'/'+ids.length+')...');h+=htmlRekap(await api('rekap',{bulan:b,kelas:ids[i]}),ids[i],b)}
+    cetakHtml(h);
+  });
   if($('#mOk'))$('#mOk').onclick=run(async()=>{const r=await api('presensi_manual',{nis:$('#mN').value,tgl:$('#mT').value,jam:$('#mJ').value,jenis:$('#mK').value,alasan:$('#mA').value});toast('Tercatat: '+r.status);$('#mN').value='';$('#mA').value=''});
   $('#tL').onclick=run(async e=>{const id=e.target.dataset.b;if(!id)return;const a=prompt('Alasan membatalkan presensi ini (wajib diisi):');if(!a)return;await api('presensi_koreksi',{id,alasan:a});toast('Presensi dibatalkan');$('#bGo').click()});
 }

@@ -16,6 +16,8 @@ body{background:var(--bg);color:var(--tx);font:16px/1.45 system-ui,-apple-system
 input{font:inherit;width:100%;padding:11px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);margin:2px 0 8px}
 .b{font:inherit;background:var(--pr);color:#fff;border:0;border-radius:8px;padding:12px 16px;font-weight:600;cursor:pointer}
 #toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--er);color:#fff;padding:10px 16px;border-radius:10px;display:none;max-width:90%;z-index:9}
+.pd{font-size:12px;color:var(--mu);margin:0 0 12px;min-height:16px}
+select{font:inherit;width:100%;padding:11px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);margin:2px 0 6px}
 .roles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0 12px}
 .roles button{text-align:left;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;padding:10px 12px;font:inherit;cursor:pointer}
 .roles button b{display:block;font-family:var(--serif,Georgia,serif);font-size:15px}
@@ -41,10 +43,11 @@ const ROLES=[
   ['admin','Admin','Pengelola sistem','admin.html',['Admin']],
   ['guru','Guru','Presensi kelas','kelas.html',['Guru','Admin']],
   ['petugas','Petugas Presensi','Presensi di gerbang','presensi.html',['Petugas','Admin']],
-  ['wali','Wali Kelas','Memantau kelas sendiri','admin.html',['Wali']]
+  ['wali','Wali Kelas','Memantau kelas sendiri','admin.html',['Wali']],
+  ['bk','BK (Bimbingan Konseling)','Memantau semua kelas','admin.html',['BK']]
 ];
-const HALAMAN={Admin:'admin.html',Guru:'kelas.html',Petugas:'presensi.html',Wali:'admin.html'};
-const NAMA={Admin:'Admin',Guru:'Guru',Petugas:'Petugas Presensi',Wali:'Wali Kelas'};
+const HALAMAN={Admin:'admin.html',Guru:'kelas.html',Petugas:'presensi.html',Wali:'admin.html',BK:'admin.html'};
+const NAMA={Admin:'Admin',Guru:'Guru',Petugas:'Petugas Presensi',Wali:'Wali Kelas',BK:'BK'};
 
 /* sudah login? langsung ke halaman sesuai hak akses */
 const tok0=sessionStorage.getItem('tok'),me0=JSON.parse(sessionStorage.getItem('me')||'null');
@@ -55,17 +58,20 @@ let sel=localStorage.getItem('peran')||'guru';
 const q=new URLSearchParams(location.search);
 
 function gambar(){
+  if(!ROLES.some(r=>r[0]===sel))sel='guru';
   $('#app').innerHTML=`<div id="login"><div class="lg"><div class="lg-brand">${brandLogo(84)}<h1>${esc(TEMA.nama)}</h1><div class="ln"></div><p>${esc(TEMA.slogan)}</p></div>
-  <div class="lg-form"><h2 style="margin:0 0 4px;font-size:21px">Masuk</h2><div class="mu">Pilih hak akses, lalu masukkan akun Anda</div>
-  ${q.get('m')==='sesi'?'<div class="pesan">Sesi berakhir atau Anda belum masuk. Silakan masuk lagi.</div>':''}
-  <label class="mu" style="display:block;margin-top:10px">Masuk sebagai</label>
-  <div class="roles">${ROLES.map(r=>`<button type="button" data-r="${r[0]}" class="${r[0]===sel?'on':''}"><b>${r[1]}</b><span>${r[2]}</span></button>`).join('')}</div>
+  <div class="lg-form"><h2 style="margin:0 0 4px;font-size:21px">Masuk</h2><div class="mu">Masukkan akun Anda, lalu pilih hak akses</div>
+  ${q.get('m')==='sesi'?'<div class="pesan">Sesi berakhir atau Anda belum masuk. Silakan masuk lagi.</div>':''}<br>
   ${window.PRESENSI_API?'':`<input id="lApi" placeholder="URL API (Apps Script)" value="${esc(API)}">`}
-  <input id="lU" placeholder="Username" autocomplete="username"><input id="lP" type="password" placeholder="Password" autocomplete="current-password">
+  <input id="lU" placeholder="Username" autocomplete="username" autocapitalize="none"><input id="lP" type="password" placeholder="Password" autocomplete="current-password">
+  <label class="mu" for="lR" style="display:block;margin-top:2px">Hak akses</label>
+  <select id="lR">${ROLES.map(r=>`<option value="${r[0]}" ${r[0]===sel?'selected':''}>${r[1]}</option>`).join('')}</select>
+  <div class="pd" id="lD"></div>
   <button class="b" style="width:100%" id="lGo">Masuk</button></div></div></div>`;
-  document.querySelectorAll('.roles button').forEach(b=>b.onclick=()=>{sel=b.dataset.r;localStorage.setItem('peran',sel);document.querySelectorAll('.roles button').forEach(x=>x.classList.toggle('on',x===b));$('#lU').focus()});
-  $('#lP').onkeydown=e=>{if(e.key==='Enter')$('#lGo').click()};
+  const desk=()=>{$('#lD').textContent=ROLES.find(r=>r[0]===sel)[2]};desk();
+  $('#lR').onchange=()=>{sel=$('#lR').value;localStorage.setItem('peran',sel);desk()};
   $('#lU').onkeydown=e=>{if(e.key==='Enter')$('#lP').focus()};
+  $('#lP').onkeydown=e=>{if(e.key==='Enter')$('#lGo').click()};
   $('#lGo').onclick=masuk;
 }
 async function panggil(a,d,tok){
