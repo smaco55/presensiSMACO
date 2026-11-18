@@ -143,7 +143,7 @@ const normRfid=s=>String(s).toUpperCase().replace(/[^0-9A-Z]/g,'').replace(/^0+/
 function buildMap(){M={};MR={};D.orang.forEach(p=>{M[p.nis]=p;M[p.kode]=p;if(p.rfid)MR[p.rfid]=p})}
 async function start(){
   if(me&&me.peran==='Guru'){location.replace('kelas.html');return}
-  $('#usr').textContent=me.nama;$('#adm').style.display=me.peran==='Admin'?'inline':'none';
+  $('#usr').textContent=me.nama;$('#adm').style.display=(me.peran==='Admin'||['laporan_gerbang','lihat_kelas','ubah_status','kelola_data','kelola_akun','pengaturan','lihat_log','notifikasi','koreksi_presensi'].some(x=>me.izin&&me.izin[x]))?'inline':'none';if(me.peran!=='Admin')$('#adm').textContent='Menu lainnya';
   Q=(await kv('Q'))||[];
   try{await sync(true)}catch(e){const c=await kv('D');if(c){D=c;buildMap();$('#tgl').textContent='(offline) '+(D.tgl||'')}else{$('#sj').textContent='Gagal memuat';return}}
   drawTabs();flush();ringkas();

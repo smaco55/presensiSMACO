@@ -67,7 +67,7 @@ async function keluar(diam){if(!diam&&tok)try{await api('logout')}catch(e){}tok=
 let KL=[],KP=[],S={jenis:'Reguler',ref:'',jam:1,mapel:'',data:null,tidak:{}};
 async function app(){
   if(!['Guru','Admin'].includes(me.peran)){location.replace('index.html');return}
-  $('#app').innerHTML=`<header class="hd"><div class="brand">${brandLogo(46)}<div><div class="nm">${esc(TEMA.nama)}</div><div class="sl">Presensi Kelas</div></div></div><div class="btns"><span class="mu">${esc(me.nama)}</span>${me.peran==='Admin'?'<a class="s" href="admin.html">Admin</a>':''}<button class="s" id="pw">Ganti password</button><button class="s" id="out">Keluar</button></div></header><div id="v"><div class="mu">Memuat...</div></div>`;
+  $('#app').innerHTML=`<header class="hd"><div class="brand">${brandLogo(46)}<div><div class="nm">${esc(TEMA.nama)}</div><div class="sl">Presensi Kelas</div></div></div><div class="btns"><span class="mu">${esc(me.nama)}</span>${(me.peran==='Admin'||['laporan_gerbang','lihat_kelas','ubah_status','kelola_data','kelola_akun','pengaturan','lihat_log','notifikasi','koreksi_presensi'].some(x=>me.izin&&me.izin[x]))?'<a class="s" href="admin.html">'+(me.peran==='Admin'?'Admin':'Menu lainnya')+'</a>':''}<button class="s" id="pw">Ganti password</button><button class="s" id="out">Keluar</button></div></header><div id="v"><div class="mu">Memuat...</div></div>`;
   $('#out').onclick=()=>keluar();
   $('#pw').onclick=()=>gantiPassword(api,toast,me.peran);
   const [k,p]=await Promise.all([api('kelas_list'),api('kelompok_list')]);

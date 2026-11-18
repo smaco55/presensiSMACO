@@ -80,12 +80,16 @@ async function keluar(silent){
 }
 
 /* Kerangka */
-const PG={dash:['Dashboard',pDash],siswa:['Siswa',pSiswa],guru:['Guru',pGuru],kelas:['Kelas',pKelas],rfid:['Kartu RFID',pRfid],petugas:['Petugas',pPetugas],set:['Pengaturan',pSet],izin:['Izin/Sakit',pIzin],kp:['Kelas Pilihan',pKP],pk:['Presensi Kelas',pPK],lap:['Laporan Gerbang',pLap],notif:['Notifikasi',pNotif],dev:['Perangkat',pDev],log:['Log',pLog]};
-function drawApp(){
-  if(me.peran==='Guru'){location.replace('kelas.html');return}      // guru memakai halaman Presensi Kelas
-  if(me.peran==='Petugas'){location.replace('presensi.html');return} // petugas memakai halaman presensi
-  const ks=me.peran==='Admin'?Object.keys(PG):(me.peran==='Wali'||me.peran==='BK')?['dash','izin','pk','lap']:['dash'];
-  const GR=[['Utama',['dash']],['Data',['siswa','guru','kelas','kp','rfid','petugas']],['Presensi',['izin','pk','lap','notif']],['Sistem',['set','dev','log']]];
+const PG={dash:['Dashboard',pDash],siswa:['Siswa',pSiswa],guru:['Guru',pGuru],kelas:['Kelas',pKelas],rfid:['Kartu RFID',pRfid],petugas:['Petugas',pPetugas],set:['Pengaturan',pSet],izin:['Izin/Sakit',pIzin],rk:['Rekap Siswa',pRK],kp:['Kelas Pilihan',pKP],pk:['Presensi Kelas',pPK],lap:['Laporan Gerbang',pLap],notif:['Notifikasi',pNotif],dev:['Perangkat',pDev],hak:['Hak Akses',pHak],log:['Log',pLog]};
+async function drawApp(){
+  try{const m=await api('me');me=Object.assign({},me,m.u);sessionStorage.setItem('me',JSON.stringify(me))}catch(e){return} // izin terbaru dari server
+  const adm=me.peran==='Admin',P=me.izin||{},ok=k=>adm||!!P[k];
+  const MENU={dash:null,siswa:'kelola_data',guru:'kelola_data',kelas:'kelola_data',kp:'kelola_data',rfid:'kelola_data',petugas:'kelola_akun',izin:'catat_izin',rk:'laporan_gerbang',pk:'lihat_kelas',lap:'laporan_gerbang',notif:'notifikasi',set:'pengaturan',dev:'pengaturan',hak:'#admin',log:'lihat_log'};
+  const ks=Object.keys(PG).filter(k=>MENU[k]===null||(MENU[k]==='#admin'?adm:ok(MENU[k])));
+  const tambahan=ks.filter(k=>k!=='dash'&&k!=='izin');
+  if(!adm&&!tambahan.length&&me.peran==='Guru'){location.replace('kelas.html');return}      // guru memakai halaman Presensi Kelas
+  if(!adm&&!tambahan.length&&me.peran==='Petugas'){location.replace('presensi.html');return} // petugas memakai halaman presensi
+  const GR=[['Utama',['dash']],['Data',['siswa','guru','kelas','kp','rfid','petugas']],['Presensi',['izin','rk','pk','lap','notif']],['Sistem',['set','dev','hak','log']]];
   const nav=GR.map(g=>{const it=g[1].filter(k=>ks.includes(k));return it.length?`<div class="grp">${g[0]}</div>`+it.map(k=>`<button data-p="${k}">${PG[k][0]}</button>`).join(''):''}).join('');
   $('#app').className='wide';
   $('#app').innerHTML=`<div class="shell"><aside class="side" id="side"><div class="brand">${brandLogo(42)}<div><div class="nm">${esc(TEMA.nama)}</div><div class="sl">${esc(TEMA.slogan)}</div></div></div><nav>${nav}</nav></aside><div class="scrim" id="scrim"></div>
@@ -444,22 +448,79 @@ async function pPK(){
 let LR=[],RR=[];
 const xl=(rows,nama)=>{if(!rows.length)return toast('Tidak ada data untuk diunduh',1);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Data');XLSX.writeFile(wb,nama+'.xlsx')};
 const cetak=id=>{const c=$(id);c.classList.add('cetak');window.print();setTimeout(()=>c.classList.remove('cetak'),600)};
-/* Cetak rekap bulanan (satu kelas per halaman) */
-let RKD=null;
+/* Rekap per siswa: gerbang (hari) + kelas (jam pelajaran), cetak per kelas */
+let RKS=null;
 const BLN=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-const labelBulan=b=>{const p=String(b).split('-');return (BLN[+p[1]-1]||'')+' '+p[0]};
 const namaKelas=id=>{const k=KL.find(x=>x.ID_Kelas===id);return k?(k.Nama_Kelas||id):(id||'Semua kelas')};
-function htmlRekap(r,kelas,bulan){
-  const tgl=new Date().toLocaleDateString('id-ID',{dateStyle:'long'});
-  return `<section class="pc"><div class="pch">${brandLogo(54)}<div><div class="nm">${esc(TEMA.nama)}</div><div><b>REKAP PRESENSI SISWA</b></div><div>Kelas ${esc(namaKelas(kelas))} &bull; Bulan ${esc(labelBulan(bulan))} &bull; Hari efektif ${r.hari} hari</div></div></div>
-  <table class="mx"><tr><th>No</th><th>NIS</th><th>Nama</th><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>%</th></tr>
-  ${r.v.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.nis)}</td><td class="n">${esc(x.nama)}</td><td>${x.h}</td><td>${x.t}</td><td>${x.i}</td><td>${x.s}</td><td>${x.a}</td><td>${x.pct}%</td></tr>`).join('')}</table>
-  <div class="ttd"><div>Wali Kelas<br><br><br><br>(........................)</div><div>Guru BK<br><br><br><br>(........................)</div><div>Dicetak ${esc(tgl)}<br>oleh ${esc(me.nama)}</div></div></section>`;
-}
 function cetakHtml(html){
   let d=document.getElementById('pcAll');if(!d){d=document.createElement('div');d.id='pcAll';document.body.appendChild(d)}
   d.innerHTML=html;d.className='cetak';d.style.display='block';
   setTimeout(()=>{window.print();setTimeout(()=>{d.style.display='none';d.className=''},600)},50);
+}
+function htmlRekapSiswa(L,kelasLabel,dari,sampai,hari,pk){
+  const tgl=new Date().toLocaleDateString('id-ID',{dateStyle:'long'});
+  return `<section class="pc"><div class="pch">${brandLogo(54)}<div><div class="nm">${esc(TEMA.nama)}</div><div><b>REKAP KEHADIRAN SISWA</b></div><div>Kelas ${esc(kelasLabel)} &bull; ${esc(dari)} s/d ${esc(sampai)} &bull; Hari efektif ${hari} hari</div></div></div>
+  <table class="mx"><tr><th rowspan="2">No</th><th rowspan="2">NIS</th><th rowspan="2">Nama</th><th colspan="6">Kehadiran gerbang (hari)</th>${pk?'<th colspan="4">Di kelas (jam pelajaran)</th>':''}</tr>
+  <tr><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>%</th>${pk?'<th>Sakit</th><th>Izin</th><th>Tanpa ket.</th><th>Total</th>':''}</tr>
+  ${L.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.nis)}</td><td class="n">${esc(x.nama)}</td><td>${x.h}</td><td>${x.t}</td><td>${x.i}</td><td>${x.s}</td><td>${x.a}</td><td>${x.pct}%</td>${pk?`<td>${x.ks}</td><td>${x.ki}</td><td>${x.kt}</td><td>${x.kTotal}</td>`:''}</tr>`).join('')}</table>
+  <div class="ttd"><div>Wali Kelas<br><br><br><br>(........................)</div><div>Guru BK<br><br><br><br>(........................)</div><div>Dicetak ${esc(tgl)}<br>oleh ${esc(me.nama)}</div></div></section>`;
+}
+async function pRK(){
+  KL=(await api('kelas_list')).v.filter(k=>k.Status!=='Nonaktif');RKS=null;
+  const now=new Date(),wali=me.peran==='Wali',ubah=me.peran==='Admin'||!!(me.izin&&me.izin.ubah_status),f2=d=>d.toLocaleDateString('sv-SE');
+  V(`<div class="card"><b>Rekap kehadiran per siswa</b>
+  <div class="mu">Jumlah hadir, terlambat, izin, sakit, dan alpa (hitungan hari, dari data gerbang) serta ketidakhadiran di kelas per jam pelajaran (sakit, izin, tanpa keterangan).</div><br>
+  <div class="row"><div><label>Kelas</label><select id="kK" ${wali?'disabled':''}>${wali?'':'<option value="">Semua kelas</option>'}${KL.map(k=>`<option value="${esc(k.ID_Kelas)}" ${wali&&k.ID_Kelas===me.kelas?'selected':''}>${esc(k.Nama_Kelas||k.ID_Kelas)}</option>`).join('')}</select></div>${field('kD','Dari',f2(new Date(now.getFullYear(),now.getMonth(),1)),'date')}${field('kS','Sampai',f2(now),'date')}</div>
+  <button class="s" id="kBI">Bulan ini</button> <button class="s" id="kBL">Bulan lalu</button> <button class="b" id="kGo">Tampilkan</button> <button class="s" id="kXl">Excel</button> <button class="s" id="kPr">Cetak / PDF (1 kelas per halaman)</button>
+  <div class="mu" id="kI" style="margin-top:8px"></div><div class="wrap"><table class="mx" id="tK"></table></div>
+  <div class="mu">Hitungan hari = dari data gerbang. Hitungan jam pelajaran = dari presensi guru di kelas. Rentang maksimal 92 hari.</div></div>`);
+  const urut=()=>RKS.r.v.slice().sort((a,b)=>String(a.kelas).localeCompare(b.kelas)||a.nama.localeCompare(b.nama));
+  $('#kBI').onclick=()=>{$('#kD').value=f2(new Date(now.getFullYear(),now.getMonth(),1));$('#kS').value=f2(now)};
+  $('#kBL').onclick=()=>{$('#kD').value=f2(new Date(now.getFullYear(),now.getMonth()-1,1));$('#kS').value=f2(new Date(now.getFullYear(),now.getMonth(),0))};
+  $('#kGo').onclick=run(async()=>{
+    const q={dari:$('#kD').value,sampai:$('#kS').value,kelas:$('#kK').value},r=await api('rekap_siswa',q);RKS={q,r};const pk=r.punyaKelas;
+    $('#kI').textContent=`${r.v.length} siswa • hari efektif ${r.hari} hari${pk?' • '+r.sesi+' sesi kelas':''}`;
+    $('#tK').innerHTML=`<tr><th rowspan="2">No</th><th rowspan="2">Kelas</th><th rowspan="2">Nama</th><th colspan="6">Gerbang (hari)</th>${pk?'<th colspan="4">Di kelas (jam pelajaran)</th>':''}<th rowspan="2"></th></tr>
+    <tr><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>%</th>${pk?'<th>Sakit</th><th>Izin</th><th>Tanpa ket.</th><th>Total</th>':''}</tr>`+
+    urut().map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.kelas)}</td><td class="n">${esc(x.nama)}</td><td>${x.h}</td><td>${x.t}</td><td>${x.i}</td><td>${x.s}</td><td class="${x.a?'mt':''}">${x.a}</td><td>${x.pct}%</td>${pk?`<td>${x.ks}</td><td>${x.ki}</td><td class="${x.kt?'mt':''}">${x.kt}</td><td><b>${x.kTotal}</b></td>`:''}<td>${ubah?`<button class="s" data-u="${esc(x.nis)}" data-n="${esc(x.nama)}">Ubah status</button>`:''}</td></tr>`).join('');
+  });
+  $('#kXl').onclick=()=>{if(!RKS)return toast('Tampilkan rekap dulu',1);xl(urut().map(x=>({NIS:x.nis,Nama:x.nama,Kelas:x.kelas,Hadir:x.h,Terlambat:x.t,Izin:x.i,Sakit:x.s,Alpa:x.a,Persen:x.pct,Kelas_Sakit:x.ks,Kelas_Izin:x.ki,Kelas_Tanpa_Keterangan:x.kt,Kelas_Total:x.kTotal})),'rekap-siswa-'+RKS.q.dari+'-sd-'+RKS.q.sampai)};
+  $('#kPr').onclick=()=>{
+    if(!RKS)return toast('Tampilkan rekap dulu',1);
+    const g={};urut().forEach(x=>(g[x.kelas]=g[x.kelas]||[]).push(x));
+    cetakHtml(Object.keys(g).sort().map(k=>htmlRekapSiswa(g[k],namaKelas(k),RKS.q.dari,RKS.q.sampai,RKS.r.hari,RKS.r.punyaKelas)).join(''));
+  };
+  $('#tK').onclick=e=>{const b=e.target.closest('button[data-u]');if(b)ubahStatus(b.dataset.u,b.dataset.n)};
+}
+function ubahStatus(nis,nama){
+  const t=new Date().toLocaleDateString('sv-SE');
+  dlgOpen(`<b>Ubah status ketidakhadiran</b><div class="mu">${esc(nama)} (${esc(nis)})</div><br>
+  <div class="row">${field('uD','Dari tanggal',t,'date')}${field('uE','Sampai tanggal (kosong = 1 hari)','','date')}</div>
+  <label>Status baru</label><select id="uSt"><option>Sakit</option><option>Izin</option><option>Tanpa keterangan</option></select>
+  <div class="mu">Mengubah keterangan tidak hadir di kelas pada tanggal tersebut. Untuk Sakit atau Izin, sistem juga mencatat (atau mengubah) sakit/izin di data gerbang pada hari aktif yang siswanya tidak tercatat masuk. Memilih Tanpa keterangan membatalkan sakit/izin yang sudah tercatat. Maksimal 31 hari, tidak boleh tanggal yang belum terjadi.</div><br>
+  <button class="b" id="uOk">Simpan perubahan</button>`);
+  $('#uOk').onclick=run(async()=>{
+    const r=await api('status_ubah',{nis,dari:$('#uD').value,sampai:$('#uE').value||$('#uD').value,status:$('#uSt').value});
+    $('#dlg').close();toast(`Tersimpan. Kelas: ${r.kelas} jam diubah. Gerbang: ${r.gerbangBaru} dicatat, ${r.gerbangUbah} diubah, ${r.gerbangBatal} dibatalkan.`);
+    if($('#kGo'))$('#kGo').click();
+  });
+}
+
+/* Hak akses per peran (hanya Admin) */
+async function pHak(){
+  const r=await api('hak_list'),NM={BK:'BK',Wali:'Wali Kelas',Guru:'Guru',Petugas:'Petugas Presensi'},RISIKO=['koreksi_presensi','kelola_data','kelola_akun','pengaturan','notifikasi'];
+  V(`<div class="card"><b>Hak akses per peran</b>
+  <div class="mu">Centang apa yang boleh dilakukan setiap peran. Admin selalu memiliki semua izin. Perubahan berlaku seketika di server; pengguna yang sedang masuk cukup memuat ulang halaman. Wali Kelas tetap hanya melihat kelasnya sendiri pada izin yang berkaitan dengan kelas.</div><br>
+  <div class="wrap"><table class="mx" id="tH"><tr><th style="text-align:left">Izin</th>${r.peran.map(p=>`<th>${NM[p]}</th>`).join('')}<th>Admin</th></tr>
+  ${r.daftar.map(x=>`<tr><td class="n"><b>${esc(x.n)}</b>${x.c?`<div class="mu" style="white-space:normal;max-width:380px">${esc(x.c)}</div>`:''}</td>${r.peran.map(p=>`<td><input type="checkbox" data-p="${p}" data-k="${x.k}" ${r.nilai[p][x.k]?'checked':''} style="width:auto;margin:0"></td>`).join('')}<td>✓</td></tr>`).join('')}</table></div><br>
+  <button class="b" id="hSim">Simpan hak akses</button> <button class="s" id="hRes">Kembalikan ke pengaturan bawaan</button></div>`);
+  $('#hSim').onclick=run(async()=>{
+    const nilai={},baru=[];r.peran.forEach(p=>nilai[p]={});
+    document.querySelectorAll('#tH input').forEach(i=>{const p=i.dataset.p,k=i.dataset.k;nilai[p][k]=i.checked;if(i.checked&&RISIKO.includes(k)&&!r.nilai[p][k])baru.push(NM[p]+': '+(r.daftar.find(x=>x.k===k)||{}).n)});
+    if(baru.length&&!confirm('Anda memberi izin sensitif berikut:\n\n'+baru.join('\n')+'\n\nLanjutkan?'))return;
+    await api('hak_set',{nilai});toast('Hak akses tersimpan');pHak();
+  });
+  $('#hRes').onclick=run(async()=>{if(!confirm('Kembalikan semua hak akses ke pengaturan bawaan?'))return;await api('hak_reset');toast('Dikembalikan ke bawaan');pHak()});
 }
 
 async function pLap(){
@@ -473,15 +534,12 @@ async function pLap(){
   <div><label>Tipe</label><select id="fT"><option value="Siswa">Siswa</option><option value="Guru">Guru</option><option value="">Semua</option></select></div></div>
   <button class="b" id="bGo">Tampilkan</button> <button class="s" id="bXl">Excel</button> <button class="s" id="bPr">Cetak / PDF</button>
   <div class="mu" id="fInfo"></div><div class="wrap"><table id="tL"></table></div></div>
-  <div class="card" id="cRek"><b>Rekap bulanan</b>
-  <div class="row">${field('rB','Bulan',t.slice(0,7),'month')}<div><label>Kelas (atau Guru)</label><select id="rK">${ko}<option value="Guru">Guru</option></select></div></div>
-  <button class="b" id="rGo">Tampilkan</button> <button class="s" id="rXl">Excel</button> <button class="s" id="rPr">Cetak kelas ini</button> <button class="s" id="rAll">Cetak semua kelas (1 kelas per halaman)</button>
-  <div class="mu" id="rJ"></div><div class="wrap"><table id="tR"></table></div></div>
+  <div class="card"><b>Rekap per siswa</b><div class="mu">Rekap bulanan atau per rentang tanggal (hadir, terlambat, izin, sakit, alpa, dan ketidakhadiran di kelas) kini ada di menu <b>Rekap Siswa</b>.</div><br><button class="s" onclick="goto('rk')">Buka Rekap Siswa</button></div>
   ${me.peran==='Admin'?`<div class="card"><b>Tambah presensi manual</b><div class="mu">Untuk siswa atau guru yang lupa scan atau saat alat rusak. Alasan wajib diisi dan tercatat di log. Untuk sakit/izin, pakai menu Izin/Sakit.</div>
   <div class="row">${field('mN','NIS / NIP')}${field('mT','Tanggal',t,'date')}${field('mJ','Jam','07:00','time')}<div><label>Jenis</label><select id="mK"><option>Masuk</option><option>Pulang</option></select></div></div>
   ${field('mA','Alasan (mis. scanner rusak)')}<button class="b" id="mOk">Simpan</button></div>`:''}`);
-  if(me.peran==='Wali'){['fK','rK'].forEach(i=>{$('#'+i).value=me.kelas;$('#'+i).disabled=true});$('#rAll').style.display='none'}
-  if(me.peran==='BK'){$('#fT').value='Siswa';$('#fT').disabled=true;[...$('#rK').options].forEach(o=>{if(o.value==='Guru')o.remove()})}
+  if(me.peran==='Wali'){$('#fK').value=me.kelas;$('#fK').disabled=true}
+  if(me.peran!=='Admin'){$('#fT').value='Siswa';$('#fT').disabled=true}
   $('#bGo').onclick=run(async()=>{
     const f={dari:$('#fD').value,sampai:$('#fS').value,kelas:$('#fK').value,nama:$('#fN').value,status:$('#fSt').value,metode:$('#fM').value,tipe:$('#fT').value};
     const r=await api('laporan',f);LR=r.v;
@@ -490,18 +548,6 @@ async function pLap(){
   });
   $('#bXl').onclick=()=>xl(LR,'laporan-presensi-'+$('#fD').value);
   $('#bPr').onclick=()=>cetak('#cLap');
-  $('#rGo').onclick=run(async()=>{
-    const r=await api('rekap',{bulan:$('#rB').value,kelas:$('#rK').value});RKD={r:r,kelas:$('#rK').value,bulan:$('#rB').value};RR=r.v.map(x=>({NIS:x.nis,Nama:x.nama,Kelas:x.kelas,Tepat_waktu:x.h,Terlambat:x.t,Izin:x.i,Sakit:x.s,Alpa:x.a,Persen:x.pct}));
-    $('#rJ').textContent=`Rekap ${$('#rB').value} • hari efektif siswa ${r.hari}, guru ${r.hariGuru}`;
-    $('#tR').innerHTML='<tr><th>NIS</th><th>Nama</th><th>Kelas</th><th>H</th><th>T</th><th>I</th><th>S</th><th>A</th><th>%</th></tr>'+r.v.map(x=>`<tr><td>${esc(x.nis)}</td><td>${esc(x.nama)}</td><td>${esc(x.kelas)}</td><td>${x.h}</td><td>${x.t}</td><td>${x.i}</td><td>${x.s}</td><td>${x.a}</td><td>${x.pct}</td></tr>`).join('');
-  });
-  $('#rXl').onclick=()=>xl(RR,'rekap-'+$('#rB').value);
-  $('#rPr').onclick=()=>{if(!RKD)return toast('Tampilkan rekap dulu',1);cetakHtml(htmlRekap(RKD.r,RKD.kelas,RKD.bulan))};
-  $('#rAll').onclick=run(async()=>{
-    const b=$('#rB').value,ids=[...$('#rK').options].map(o=>o.value).filter(v=>v&&v!=='Guru');let h='';
-    for(let i=0;i<ids.length;i++){toast('Menyiapkan kelas '+ids[i]+' ('+(i+1)+'/'+ids.length+')...');h+=htmlRekap(await api('rekap',{bulan:b,kelas:ids[i]}),ids[i],b)}
-    cetakHtml(h);
-  });
   if($('#mOk'))$('#mOk').onclick=run(async()=>{const r=await api('presensi_manual',{nis:$('#mN').value,tgl:$('#mT').value,jam:$('#mJ').value,jenis:$('#mK').value,alasan:$('#mA').value});toast('Tercatat: '+r.status);$('#mN').value='';$('#mA').value=''});
   $('#tL').onclick=run(async e=>{const id=e.target.dataset.b;if(!id)return;const a=prompt('Alasan membatalkan presensi ini (wajib diisi):');if(!a)return;await api('presensi_koreksi',{id,alasan:a});toast('Presensi dibatalkan');$('#bGo').click()});
 }
