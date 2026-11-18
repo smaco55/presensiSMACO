@@ -31,7 +31,7 @@ const ctx={console,JSON,Math,Date:MD,Object,Array,String,Number,isFinite,parseIn
  Logger:{log:x=>console.log('LOG:',x)}};
 const store={};const cache={get:k=>store[k]??null,put:(k,v)=>store[k]=v,remove:k=>delete store[k]};
 vm.createContext(ctx);
-vm.runInContext(['Code.gs','Presensi.gs','Biometrik.gs','Perangkat.gs','Laporan.gs','Operasional.gs','Notifikasi.gs','Tambahan.gs','Kelas.gs','Rfid.gs'].map(f=>fs.readFileSync(D+f,'utf8')).join('\n')+'\nthis.__doPost=doPost;this.__setup=setupAwal;this.__uji=ujiBeban;this.ringkasanTeks=ringkasanTeks;',ctx);
+vm.runInContext(['Code.gs','Presensi.gs','Biometrik.gs','Perangkat.gs','Laporan.gs','Operasional.gs','Notifikasi.gs','Tambahan.gs','Kelas.gs','Rfid.gs','Akses.gs'].map(f=>fs.readFileSync(D+f,'utf8')).join('\n')+'\nthis.__doPost=doPost;this.__setup=setupAwal;this.__uji=ujiBeban;this.ringkasanTeks=ringkasanTeks;this.periksaSistem=periksaSistem;',ctx);
 const post=(o,params={})=>JSON.parse(ctx.__doPost({postData:{contents:JSON.stringify(o)},parameter:params}).t);
 let ok=0,bad=0;const T=(n,c,x)=>{c?ok++:bad++;console.log((c?'PASS ':'FAIL ')+n+(c?'':'  -> '+JSON.stringify(x)))};
 (async()=>{
@@ -171,7 +171,7 @@ r=post({a:'dashboard',t:W});T('dashboard wali hanya kelas 7A',r.ok&&r.v.kelas.le
 r=post({a:'laporan',t:W,dari:'2026-11-02',sampai:'2026-11-02',kelas:'7B'});T('wali minta kelas 7B -> tetap dipaksa 7A',r.ok&&r.v.length>0&&r.v.every(x=>x.Kelas==='7A'),r.v&&r.v.map(x=>x.Kelas));
 r=post({a:'rekap',t:W,bulan:'2026-11',kelas:'7B'});T('rekap wali hanya 7A',r.ok&&r.v.every(x=>x.kelas==='7A'),r.v&&r.v.map(x=>x.kelas));
 r=post({a:'siswa_kelas',t:W,kelas:'7B'});T('siswa_kelas wali: hanya 7A',r.ok&&r.kelas==='7A'&&r.v.length>=3,r);
-r=post({a:'siswa_kelas',t:G});T('petugas biasa ditolak siswa_kelas',!r.ok,r);
+r=post({a:'siswa_kelas',t:G,kelas:'7A'});T('petugas (punya izin catat izin) dapat melihat daftar siswa kelas untuk keperluan izin',r.ok&&r.kelas==='7A',r);
 r=post({a:'izin_simpan',t:W,nis:'2003',jenis:'Sakit',tgl:'2026-11-03'});T('wali tak boleh catat izin siswa kelas lain',!r.ok&&/bukan di kelas/.test(r.err),r);
 // izin multi hari: Rabu 4 s/d Senin 9 Nov -> hari aktif Rabu,Kamis,Jumat,Senin = 4 (Sabtu/Minggu dilewati)
 r=post({a:'izin_simpan',t:W,nis:'2001',jenis:'Sakit',tgl:'2026-11-04',sampai:'2026-11-09',ket:'Demam'});T('izin 4-9 Nov: 4 hari aktif tercatat, 2 dilewati',r.ok&&r.n===4&&r.lewat===2,r);
@@ -485,6 +485,77 @@ r=post({a:'rfid_list',t:A,kelas:'7A'});T('hasil impor terbaca di daftar (1006 = 
 r=post({a:'rfid_import',t:GU,rows:[['1004','DDDD4444']]});T('guru tak boleh impor kartu',!r.ok,r);
 r=post({a:'rfid_hapus',t:A,id:'1004'});T('hapus kartu siswa',r.ok&&post({a:'rfid_list',t:A,kelas:'7B'}).v.find(x=>x.id==='1004').rfid==='',r);
 NOW=Date.parse('2026-11-02T10:00:00+07:00');
+
+
+// ---- hak akses yang dapat diatur admin ----
+NOW=Date.parse('2026-11-10T10:00:00+07:00');
+r=post({a:'hak_list',t:BK});T('BK tak boleh membuka pengaturan hak akses',!r.ok,r);
+r=post({a:'hak_set',t:BK,nilai:{BK:{koreksi_presensi:true}}});T('BK tak boleh memberi dirinya izin',!r.ok,r);
+r=post({a:'hak_list',t:A});T('admin: daftar izin + nilai bawaan (BK boleh lihat laporan, tidak boleh koreksi)',r.ok&&r.daftar.length===12&&r.nilai.BK.laporan_gerbang===true&&r.nilai.BK.koreksi_presensi===false&&r.nilai.Guru.isi_kelas===true&&r.nilai.Petugas.belum_hadir===true,r.nilai);
+r=post({a:'me',t:BK});T('me: BK membawa daftar izinnya',r.ok&&r.u.izin.ubah_status===true&&r.u.izin.kelola_akun===false,r.u&&r.u.izin);
+r=post({a:'me',t:A});T('me: admin memiliki semua izin',Object.values(r.u.izin).every(x=>x===true),r.u.izin);
+// beri BK izin koreksi presensi -> berlaku langsung
+r=post({a:'hak_set',t:A,nilai:{BK:{laporan_gerbang:true,lihat_kelas:true,catat_izin:true,ubah_status:true,belum_hadir:true,koreksi_presensi:true}}});T('admin memberi BK izin koreksi presensi',r.ok,r);
+r=post({a:'presensi_manual',t:BK,nis:'5002',tgl:'2026-11-10',jam:'07:00',jenis:'Masuk',alasan:'Lupa scan, dicek BK'});T('BK kini boleh presensi manual (izin diberikan admin)',r.ok,r);
+r=post({a:'laporan',t:BK,dari:'2026-11-10',sampai:'2026-11-10',nama:'Cache Tiga'});const idm=r.v[0]&&r.v[0].ID;
+r=post({a:'presensi_koreksi',t:BK,id:idm,alasan:'Koreksi oleh BK'});T('BK kini boleh membatalkan presensi',r.ok,r);
+r=post({a:'petugas_list',t:BK});T('izin lain tetap tertutup (BK tidak boleh kelola akun)',!r.ok,r);
+// cabut izin lihat laporan gerbang dari BK
+r=post({a:'hak_set',t:A,nilai:{BK:{laporan_gerbang:false,lihat_kelas:true,catat_izin:true,ubah_status:true,belum_hadir:true,koreksi_presensi:false}}});
+r=post({a:'laporan',t:BK,dari:'2026-11-10',sampai:'2026-11-10'});T('izin dicabut: BK tak bisa lagi melihat laporan gerbang',!r.ok&&/ditolak/.test(r.err),r);
+r=post({a:'rekap_siswa',t:BK,dari:'2026-11-01',sampai:'2026-11-10'});T('izin dicabut: rekap siswa juga tertutup',!r.ok,r);
+r=post({a:'presensi_manual',t:BK,nis:'5002',tgl:'2026-11-10',jam:'07:00',jenis:'Masuk',alasan:'x'});T('izin koreksi dicabut kembali: BK tak bisa presensi manual',!r.ok,r);
+r=post({a:'kelas_matriks',t:BK,kelas:'7A',tgl:'2026-11-10'});T('izin lain BK (lihat kelas) tetap utuh',r.ok,r);
+// beri Petugas izin lihat kelas
+r=post({a:'kelas_matriks',t:G3,kelas:'7A',tgl:'2026-11-10'});T('sebelum diberi izin: petugas tak bisa lihat tabel kelas',!r.ok,r);
+post({a:'hak_set',t:A,nilai:{Petugas:{lihat_kelas:true,catat_izin:true,belum_hadir:true}}});
+r=post({a:'kelas_matriks',t:G3,kelas:'7A',tgl:'2026-11-10'});T('setelah diberi izin oleh admin: petugas bisa lihat tabel kelas',r.ok,r);
+r=post({a:'me',t:G3});T('izin petugas ikut berubah di me',r.u.izin.lihat_kelas===true,r.u.izin);
+// guru tetap bisa lihat sesinya sendiri walau izin lihat_kelas tidak ada
+r=post({a:'kelas_sesi_list',t:GU,dari:'2026-11-10',sampai:'2026-11-10'});T('guru tetap bisa melihat sesi miliknya sendiri',r.ok,r);
+r=post({a:'hak_set',t:A,nilai:{Guru:{isi_kelas:false}}});r=post({a:'kelas_siswa',t:GU,jenis:'Reguler',ref:'7A'});T('izin isi_kelas dicabut dari guru: ditolak',!r.ok,r);
+post({a:'hak_reset',t:A});
+r=post({a:'kelas_siswa',t:GU,jenis:'Reguler',ref:'7A'});T('setelah reset ke bawaan: guru kembali bisa mengisi kelas',r.ok,r);
+r=post({a:'laporan',t:BK,dari:'2026-11-10',sampai:'2026-11-10'});T('setelah reset: BK kembali bisa melihat laporan',r.ok,r);
+r=post({a:'kelas_matriks',t:G3,kelas:'7A',tgl:'2026-11-10'});T('setelah reset: petugas kembali tak bisa lihat tabel kelas',!r.ok,r);
+r=post({a:'hak_set',t:A,nilai:{Hacker:{koreksi_presensi:true}}});T('peran tidak dikenal tidak disimpan',!r.ok,r);
+// ---- header kolom belum disinkronkan: tetap terbaca ----
+const hS=sheets.SISWA.d[0].slice();sheets.SISWA.d[0]=hS.slice(0,10);
+r=post({a:'rfid_list',t:A,kelas:'7A'});T('header sheet belum dimigrasi: kolom RFID tetap terbaca (header dilengkapi otomatis)',r.ok&&r.v.some(x=>x.rfid==='12AB34CD'),r.v&&r.v.map(x=>x.rfid));
+sheets.SISWA.d[0]=hS;
+// ---- rekap siswa gabungan ----
+r=post({a:'rekap_siswa',t:BK,dari:'2026-11-01',sampai:'2026-11-12',kelas:'7A'});
+T('rekap siswa: gerbang + kelas, hanya kelas 7A, siswa saja',r.ok&&r.punyaKelas===true&&r.v.length>0&&r.v.every(x=>x.kelas==='7A'),r.v&&r.v.length);
+const rs1=r.v.find(x=>x.nis==='1001');T('rekap siswa 1001: ada hitungan sakit/izin/tanpa ket di kelas (kTotal = ks+ki+kt)',rs1&&rs1.kTotal===rs1.ks+rs1.ki+rs1.kt&&rs1.kTotal>=1,rs1);
+r=post({a:'rekap_siswa',t:BK,dari:'2026-11-01',sampai:'2026-11-12',kelas:'Guru'});T('rekap siswa: data guru ditolak',!r.ok,r);
+r=post({a:'rekap_siswa',t:W,dari:'2026-11-01',sampai:'2026-11-12',kelas:'7B'});T('rekap siswa wali: dipaksa kelas sendiri (7A)',r.ok&&r.v.every(x=>x.kelas==='7A'),r.v&&r.v.map(x=>x.kelas));
+r=post({a:'rekap_siswa',t:A,dari:'2026-11-01',sampai:'2026-11-12'});T('rekap siswa admin tanpa kelas: semua kelas',r.ok&&new Set(r.v.map(x=>x.kelas)).size>=2,r.v&&r.v.length);
+r=post({a:'rekap_siswa',t:A,dari:'2026-01-01',sampai:'2026-12-31'});T('rentang lebih dari 92 hari ditolak',!r.ok,r);
+r=post({a:'rekap_siswa',t:G3,dari:'2026-11-01',sampai:'2026-11-12'});T('petugas tak boleh membuka rekap siswa',!r.ok,r);
+// ---- ubah status ketidakhadiran (mis. tanpa keterangan -> sakit) ----
+// 2002 pada 2026-11-10: dicatat 'Tanpa keterangan' di kelas (jam 1) dan belum ada izin di gerbang? (sudah scan masuk di gerbang hari itu?)
+post({a:'kelas_simpan',t:A,jenis:'Reguler',ref:'7A',jam:6,mapel:'Seni',tgl:'2026-11-09',tidak:{'2001':'Tanpa keterangan','2002':'Tanpa keterangan'}});
+let rr=post({a:'kelas_matriks',t:A,kelas:'7A',tgl:'2026-11-09'});T('sebelum diubah: 2002 jam 6 = T (tanpa keterangan)',rr.v.find(x=>x.nis==='2002').c[6]==='T',rr.v.find(x=>x.nis==='2002').c);
+r=post({a:'status_ubah',t:BK,nis:'2002',dari:'2026-11-09',sampai:'2026-11-09',status:'Sakit'});T('BK mengubah tanpa keterangan -> sakit (kelas 1 baris, gerbang +1 sakit)',r.ok&&r.kelas===1&&r.gerbangBaru===1,r);
+rr=post({a:'kelas_matriks',t:A,kelas:'7A',tgl:'2026-11-09'});T('setelah diubah: 2002 jam 6 = S (sakit); 2001 tetap T',rr.v.find(x=>x.nis==='2002').c[6]==='S'&&rr.v.find(x=>x.nis==='2001').c[6]==='T',[rr.v.find(x=>x.nis==='2002').c[6],rr.v.find(x=>x.nis==='2001').c[6]]);
+rr=post({a:'laporan',t:A,dari:'2026-11-09',sampai:'2026-11-09',nama:'Kiki',status:'Sakit'});T('di data gerbang tercatat Sakit untuk 2002 pada 9 Nov',rr.v.length===1&&rr.v[0].Jenis==='Sakit',rr.v);
+r=post({a:'status_ubah',t:BK,nis:'2002',dari:'2026-11-09',sampai:'2026-11-09',status:'Izin'});T('ubah lagi sakit -> izin: catatan gerbang diubah (bukan ganda)',r.ok&&r.gerbangUbah===1&&r.gerbangBaru===0,r);
+rr=post({a:'laporan',t:A,dari:'2026-11-09',sampai:'2026-11-09',nama:'Kiki'});T('hanya satu catatan izin/sakit hari itu (jenis Izin)',rr.v.filter(x=>x.Jenis==='Izin'||x.Jenis==='Sakit').length===1&&rr.v.some(x=>x.Jenis==='Izin'),rr.v.map(x=>x.Jenis));
+r=post({a:'status_ubah',t:BK,nis:'2002',dari:'2026-11-09',sampai:'2026-11-09',status:'Tanpa keterangan'});T('dikembalikan ke tanpa keterangan: izin gerbang dibatalkan',r.ok&&r.gerbangBatal===1&&r.kelas===1,r);
+rr=post({a:'laporan',t:A,dari:'2026-11-09',sampai:'2026-11-09',nama:'Kiki'});T('tidak ada lagi catatan izin/sakit aktif untuk 2002 pada 9 Nov',rr.v.filter(x=>x.Jenis==='Izin'||x.Jenis==='Sakit').length===0,rr.v.map(x=>x.Jenis));
+r=post({a:'status_ubah',t:W,nis:'2003',dari:'2026-11-09',sampai:'2026-11-09',status:'Sakit'});T('wali tak boleh mengubah status siswa kelas lain (2003 di 7B)',!r.ok&&/bukan di kelas Anda/.test(r.err),r);
+r=post({a:'status_ubah',t:W,nis:'2001',dari:'2026-11-09',sampai:'2026-11-09',status:'Izin'});T('wali boleh mengubah status siswa kelasnya sendiri (2001 di 7A)',r.ok&&r.kelas===1,r);
+r=post({a:'status_ubah',t:BK,nis:'2002',dari:'2026-11-09',sampai:'2026-11-30',status:'Sakit'});T('tanggal masa depan ditolak',!r.ok&&/belum terjadi/.test(r.err),r);
+r=post({a:'status_ubah',t:BK,nis:'2002',dari:'2026-11-09',sampai:'2026-11-09',status:'Bolos'});T('status tidak valid ditolak',!r.ok,r);
+r=post({a:'status_ubah',t:G3,nis:'2002',dari:'2026-11-09',sampai:'2026-11-09',status:'Sakit'});T('petugas tak boleh mengubah status',!r.ok,r);
+r=post({a:'status_ubah',t:GU,nis:'2002',dari:'2026-11-09',sampai:'2026-11-09',status:'Sakit'});T('guru tak boleh mengubah status',!r.ok,r);
+// rentang: hari aktif saja; siswa yang tercatat masuk di gerbang tidak dibuatkan izin
+r=post({a:'status_ubah',t:A,nis:'1001',dari:'2026-11-09',sampai:'2026-11-10',status:'Sakit'});T('rentang 9-10 Nov untuk 1001 (10 Nov tercatat masuk di gerbang): hanya hari tanpa catatan masuk yang dibuatkan sakit',r.ok&&r.gerbangBaru<=1,r);
+NOW=Date.parse('2026-11-02T10:00:00+07:00');
+
+
+// ---- periksa sistem ----
+const ps=ctx.periksaSistem();T('periksaSistem berjalan: tidak ada sheet/kolom bermasalah dan ada ringkasan data',ps.baik.length>5&&!ps.periksa.some(x=>/Sheet|judul kolom/.test(x)),ps.periksa);
 
 // uji beban
 NOW=Date.parse('2026-11-03T06:40:00+07:00');
