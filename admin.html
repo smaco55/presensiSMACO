@@ -259,14 +259,21 @@ async function pPetugas(){
 }
 
 /* Pengaturan */
+const opsPer=v=>[['bulan','Bulan'],['semester','Semester'],['tahun','Tahun ajaran']].map(x=>`<option value="${x[0]}" ${x[0]===v?'selected':''}>${x[1]}</option>`).join('');
 async function pSet(){
   const [ps,jl]=await Promise.all([api('pengaturan_get'),api('jadwal_list')]),s=ps.v,JL=jl.v,H=['Senin','Selasa','Rabu','Kamis','Jumat','Sabtu','Minggu'],M={barcode:'Barcode',rfid:'RFID (tempelkan kartu pada pembaca)',qr:'QR Code',nis:'Input NIS manual (khusus petugas, dengan konfirmasi)',wajah:'Wajah',sidik:'Sidik jari (perangkat eksternal)'};
   V(`<div class="card"><b>Jam presensi</b><div class="row">${field('sM','Jam mulai',s.jam_mulai,'time')}${field('sB','Batas terlambat',s.jam_batas_terlambat,'time')}${field('sE','Jam berakhir',s.jam_selesai,'time')}${field('sP','Mulai jam pulang',s.jam_mulai_pulang,'time')}</div>
   <label>Hari aktif sekolah</label><div class="chk">${H.map((h,i)=>`<label><input type="checkbox" class="hr" value="${i+1}" ${s.hari_aktif.split(',').includes(String(i+1))?'checked':''} style="width:auto;margin:0 4px 0 8px">${h}</label>`).join('')}</div><br>
   ${field('sL','Hari libur (yyyy-mm-dd, pisah koma)',s.hari_libur)}
   ${field('sNm','Nama sekolah (dipakai di pesan ke orang tua)',s.nama_sekolah)}
+  <div class="card" style="box-shadow:none;margin:6px 0"><b>Keterlambatan dan lupa bawa kartu</b>
+  <div class="mu">Hitungan otomatis kembali ke 0 saat periode berganti. Semester Ganjil dan Genap dihitung dari bulan mulai di bawah (bawaan: Ganjil mulai Juli, Genap mulai Januari); tahun ajaran dimulai pada bulan Ganjil.</div>
+  <div class="row"><div><label>Hitungan keterlambatan di-reset setiap</label><select id="sPerT">${opsPer(s.periode_terlambat)}</select></div><div><label>Hitungan lupa bawa kartu di-reset setiap</label><select id="sPerL">${opsPer(s.periode_lupa_kartu)}</select></div></div>
+  <div class="row">${field('sBatas','Batas lupa bawa kartu per periode (lalu muncul peringatan)',s.batas_lupa_kartu,'number')}${field('sGj','Bulan mulai semester Ganjil (1-12)',s.bulan_ganjil,'number')}${field('sGn','Bulan mulai semester Genap (1-12)',s.bulan_genap,'number')}</div>
+  <label>Daftar alasan terlambat (pilihan cepat bagi petugas, pisahkan dengan koma)</label><textarea id="sAls" rows="2">${esc(s.alasan_terlambat)}</textarea>
+  <button class="s" id="sHit" type="button">Hitung ulang counter dari data presensi</button> <span class="mu">Gunakan setelah mengubah periode, atau untuk data yang sudah ada sebelum fitur ini.</span></div>
   <div class="card" style="box-shadow:none;margin:6px 0"><b>Teks pesan ke orang tua (email dan WhatsApp)</b>
-  <div class="mu">Penanda yang bisa dipakai: <b>{nama}</b> <b>{kelas}</b> <b>{tanggal}</b> <b>{jam}</b> <b>{sekolah}</b>. {jam} hanya terisi pada pesan terlambat.</div>
+  <div class="mu">Penanda yang bisa dipakai: <b>{nama}</b> <b>{kelas}</b> <b>{tanggal}</b> <b>{jam}</b> <b>{sekolah}</b> <b>{alasan}</b> <b>{ke}</b> <b>{periode}</b>. Penanda {jam}, {alasan}, {ke} (keterlambatan ke berapa), dan {periode} hanya terisi pada pesan terlambat. Jika pesan terlambat buatan Anda belum memuat {alasan} dan {ke}, tambahkan agar alasan dan jumlah keterlambatan ikut terkirim.</div>
   <label>Pesan untuk siswa TERLAMBAT</label><textarea id="sPT" rows="4">${esc(s.pesan_terlambat)}</textarea><div class="mu" id="vPT"></div>
   <label>Pesan untuk siswa BELUM PRESENSI / tidak hadir</label><textarea id="sPB" rows="4">${esc(s.pesan_belum)}</textarea><div class="mu" id="vPB"></div>
   <button class="s" id="sPD" type="button">Kembalikan teks bawaan</button></div>${field('sEm','Email penerima ringkasan harian (pisah koma; email pemilik skrip otomatis menerima)',s.email_ringkasan)}<div class="row">${field('sT','Tahun ajaran',s.tahun_ajaran)}<div><label>Semester</label><select id="sS">${opts(['Ganjil','Genap'],s.semester)}</select></div></div>
@@ -285,14 +292,15 @@ async function pSet(){
   $('#jOk').onclick=run(async()=>{const h=$('#jJ').value==='Hari';await api('jadwal_save',{v:{Jenis:$('#jJ').value,Kunci:h?$('#jH').value:$('#jT').value,Mulai:$('#jM').value,Batas:$('#jB').value,Selesai:$('#jS').value,Pulang:$('#jP').value,Keterangan:$('#jK').value}});toast('Jadwal khusus tersimpan');pSet()});
   $('#tJ').onclick=run(async e=>{if(e.target.dataset.jj){if(!confirm('Hapus jadwal khusus ini?'))return;await api('jadwal_hapus',{jenis:e.target.dataset.jj,kunci:e.target.dataset.jk});toast('Dihapus');pSet()}});
   
-  const PD={t:'Yth. Orang tua/wali {nama} (kelas {kelas}). Kami informasikan bahwa {nama} tercatat terlambat tiba di sekolah pada {tanggal} pukul {jam}. Terima kasih. {sekolah}',b:'Yth. Orang tua/wali {nama} (kelas {kelas}). Kami informasikan bahwa {nama} belum tercatat hadir di sekolah pada {tanggal}. Mohon konfirmasi bila berhalangan hadir (izin/sakit). Terima kasih. {sekolah}'};
-  const pv=()=>{const o={nama:'Budi Santoso',kelas:'7A',tanggal:'02-11-2026',jam:'07:25',sekolah:$('#sNm').value};const f=x=>x.replace(/\{(\w+)\}/g,(m,k)=>k in o?o[k]:m);
+  $('#sHit').onclick=run(async()=>{const r=await api('statistik_hitung_ulang');toast('Counter dihitung ulang dari data presensi ('+r.n+' catatan)')});
+  const PD={t:'Yth. Orang tua/wali {nama} (kelas {kelas}). Kami informasikan bahwa {nama} tercatat terlambat tiba di sekolah pada {tanggal} pukul {jam} (alasan: {alasan}). Ini keterlambatan ke-{ke} {periode}. Terima kasih. {sekolah}',b:'Yth. Orang tua/wali {nama} (kelas {kelas}). Kami informasikan bahwa {nama} belum tercatat hadir di sekolah pada {tanggal}. Mohon konfirmasi bila berhalangan hadir (izin/sakit). Terima kasih. {sekolah}'};
+  const pv=()=>{const o={nama:'Budi Santoso',kelas:'7A',tanggal:'02-11-2026',jam:'07:25',sekolah:$('#sNm').value,alasan:'Macet',ke:'2',periode:'semester ini'};const f=x=>x.replace(/\{(\w+)\}/g,(m,k)=>k in o?o[k]:m);
     $('#vPT').textContent='Contoh: '+f($('#sPT').value);$('#vPB').textContent='Contoh: '+f($('#sPB').value)};
   $('#sPT').oninput=$('#sPB').oninput=$('#sNm').oninput=pv;pv();
   $('#sPD').onclick=()=>{$('#sPT').value=PD.t;$('#sPB').value=PD.b;pv()};
   $('#sOk').onclick=run(async()=>{
     const ck=c=>[...document.querySelectorAll('.'+c+':checked')].map(x=>x.value).join(',');
-    await api('pengaturan_set',{v:{jam_mulai:$('#sM').value,jam_batas_terlambat:$('#sB').value,jam_selesai:$('#sE').value,jam_mulai_pulang:$('#sP').value,hari_aktif:ck('hr'),hari_libur:$('#sL').value.replace(/\s/g,''),tahun_ajaran:$('#sT').value,nama_sekolah:$('#sNm').value,pesan_terlambat:$('#sPT').value,pesan_belum:$('#sPB').value,email_ringkasan:$('#sEm').value.replace(/\s/g,''),semester:$('#sS').value,metode_aktif:ck('mt'),notif_ortu:$('#sN').checked?'ya':'tidak',kunci_petugas:$('#sKu').checked?'ya':'tidak'}});
+    await api('pengaturan_set',{v:{jam_mulai:$('#sM').value,jam_batas_terlambat:$('#sB').value,jam_selesai:$('#sE').value,jam_mulai_pulang:$('#sP').value,hari_aktif:ck('hr'),hari_libur:$('#sL').value.replace(/\s/g,''),tahun_ajaran:$('#sT').value,periode_terlambat:$('#sPerT').value,periode_lupa_kartu:$('#sPerL').value,batas_lupa_kartu:$('#sBatas').value,bulan_ganjil:$('#sGj').value,bulan_genap:$('#sGn').value,alasan_terlambat:$('#sAls').value,nama_sekolah:$('#sNm').value,pesan_terlambat:$('#sPT').value,pesan_belum:$('#sPB').value,email_ringkasan:$('#sEm').value.replace(/\s/g,''),semester:$('#sS').value,metode_aktif:ck('mt'),notif_ortu:$('#sN').checked?'ya':'tidak',kunci_petugas:$('#sKu').checked?'ya':'tidak'}});
     toast('Pengaturan tersimpan');
   });
 }
@@ -457,12 +465,13 @@ function cetakHtml(html){
   d.innerHTML=html;d.className='cetak';d.style.display='block';
   setTimeout(()=>{window.print();setTimeout(()=>{d.style.display='none';d.className=''},600)},50);
 }
-function htmlRekapSiswa(L,kelasLabel,dari,sampai,hari,pk){
+function htmlRekapSiswa(L,kelasLabel,dari,sampai,hari,pk,inf){
+  inf=inf||{terlambat:'periode ini',lupa:'periode ini'};
   const tgl=new Date().toLocaleDateString('id-ID',{dateStyle:'long'});
   return `<section class="pc"><div class="pch">${brandLogo(54)}<div><div class="nm">${esc(TEMA.nama)}</div><div><b>REKAP KEHADIRAN SISWA</b></div><div>Kelas ${esc(kelasLabel)} &bull; ${esc(dari)} s/d ${esc(sampai)} &bull; Hari efektif ${hari} hari</div></div></div>
-  <table class="mx"><tr><th rowspan="2">No</th><th rowspan="2">NIS</th><th rowspan="2">Nama</th><th colspan="6">Kehadiran gerbang (hari)</th>${pk?'<th colspan="4">Di kelas (jam pelajaran)</th>':''}</tr>
-  <tr><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>%</th>${pk?'<th>Sakit</th><th>Izin</th><th>Tanpa ket.</th><th>Total</th>':''}</tr>
-  ${L.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.nis)}</td><td class="n">${esc(x.nama)}</td><td>${x.h}</td><td>${x.t}</td><td>${x.i}</td><td>${x.s}</td><td>${x.a}</td><td>${x.pct}%</td>${pk?`<td>${x.ks}</td><td>${x.ki}</td><td>${x.kt}</td><td>${x.kTotal}</td>`:''}</tr>`).join('')}</table>
+  <table class="mx"><tr><th rowspan="2">No</th><th rowspan="2">NIS</th><th rowspan="2">Nama</th><th colspan="6">Kehadiran gerbang (hari)</th><th colspan="3">Terlambat dan lupa kartu</th>${pk?'<th colspan="4">Di kelas (jam pelajaran)</th>':''}</tr>
+  <tr><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>%</th><th>Terlambat ${esc(inf.terlambat)}</th><th>Alasan terlambat</th><th>Lupa kartu ${esc(inf.lupa)}</th>${pk?'<th>Sakit</th><th>Izin</th><th>Tanpa ket.</th><th>Total</th>':''}</tr>
+  ${L.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.nis)}</td><td class="n">${esc(x.nama)}</td><td>${x.h}</td><td>${x.t}</td><td>${x.i}</td><td>${x.s}</td><td>${x.a}</td><td>${x.pct}%</td><td>${x.tPer}</td><td class="n">${esc(x.alasan||'-')}</td><td>${x.lupaPer}</td>${pk?`<td>${x.ks}</td><td>${x.ki}</td><td>${x.kt}</td><td>${x.kTotal}</td>`:''}</tr>`).join('')}</table>
   <div class="ttd"><div>Wali Kelas<br><br><br><br>(........................)</div><div>Guru BK<br><br><br><br>(........................)</div><div>Dicetak ${esc(tgl)}<br>oleh ${esc(me.nama)}</div></div></section>`;
 }
 async function pRK(){
@@ -480,15 +489,15 @@ async function pRK(){
   $('#kGo').onclick=run(async()=>{
     const q={dari:$('#kD').value,sampai:$('#kS').value,kelas:$('#kK').value},r=await api('rekap_siswa',q);RKS={q,r};const pk=r.punyaKelas;
     $('#kI').textContent=`${r.v.length} siswa • hari efektif ${r.hari} hari${pk?' • '+r.sesi+' sesi kelas':''}`;
-    $('#tK').innerHTML=`<tr><th rowspan="2">No</th><th rowspan="2">Kelas</th><th rowspan="2">Nama</th><th colspan="6">Gerbang (hari)</th>${pk?'<th colspan="4">Di kelas (jam pelajaran)</th>':''}<th rowspan="2"></th></tr>
-    <tr><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>%</th>${pk?'<th>Sakit</th><th>Izin</th><th>Tanpa ket.</th><th>Total</th>':''}</tr>`+
-    urut().map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.kelas)}</td><td class="n">${esc(x.nama)}</td><td>${x.h}</td><td>${x.t}</td><td>${x.i}</td><td>${x.s}</td><td class="${x.a?'mt':''}">${x.a}</td><td>${x.pct}%</td>${pk?`<td>${x.ks}</td><td>${x.ki}</td><td class="${x.kt?'mt':''}">${x.kt}</td><td><b>${x.kTotal}</b></td>`:''}<td>${ubah?`<button class="s" data-u="${esc(x.nis)}" data-n="${esc(x.nama)}">Ubah status</button>`:''}</td></tr>`).join('');
+    $('#tK').innerHTML=`<tr><th rowspan="2">No</th><th rowspan="2">Kelas</th><th rowspan="2">Nama</th><th colspan="6">Gerbang (hari)</th><th colspan="4">Terlambat dan lupa kartu</th>${pk?'<th colspan="4">Di kelas (jam pelajaran)</th>':''}<th rowspan="2"></th></tr>
+    <tr><th>Hadir</th><th>Terlambat</th><th>Izin</th><th>Sakit</th><th>Alpa</th><th>%</th><th>Terlambat ${esc(r.info.terlambat)}</th><th>Alasan terlambat</th><th>Lupa kartu (rentang)</th><th>Lupa kartu ${esc(r.info.lupa)}</th>${pk?'<th>Sakit</th><th>Izin</th><th>Tanpa ket.</th><th>Total</th>':''}</tr>`+
+    urut().map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.kelas)}</td><td class="n">${esc(x.nama)}</td><td>${x.h}</td><td>${x.t}</td><td>${x.i}</td><td>${x.s}</td><td class="${x.a?'mt':''}">${x.a}</td><td>${x.pct}%</td><td><b>${x.tPer}</b></td><td class="n" style="white-space:normal;min-width:140px">${esc(x.alasan||'-')}</td><td>${x.lupaR}</td><td class="${x.lupaPer>=r.info.batasLupa?'mt':''}"><b>${x.lupaPer}</b></td>${pk?`<td>${x.ks}</td><td>${x.ki}</td><td class="${x.kt?'mt':''}">${x.kt}</td><td><b>${x.kTotal}</b></td>`:''}<td>${ubah?`<button class="s" data-u="${esc(x.nis)}" data-n="${esc(x.nama)}">Ubah status</button>`:''}</td></tr>`).join('');
   });
-  $('#kXl').onclick=()=>{if(!RKS)return toast('Tampilkan rekap dulu',1);xl(urut().map(x=>({NIS:x.nis,Nama:x.nama,Kelas:x.kelas,Hadir:x.h,Terlambat:x.t,Izin:x.i,Sakit:x.s,Alpa:x.a,Persen:x.pct,Kelas_Sakit:x.ks,Kelas_Izin:x.ki,Kelas_Tanpa_Keterangan:x.kt,Kelas_Total:x.kTotal})),'rekap-siswa-'+RKS.q.dari+'-sd-'+RKS.q.sampai)};
+  $('#kXl').onclick=()=>{if(!RKS)return toast('Tampilkan rekap dulu',1);xl(urut().map(x=>({NIS:x.nis,Nama:x.nama,Kelas:x.kelas,Hadir:x.h,Terlambat:x.t,Izin:x.i,Sakit:x.s,Alpa:x.a,Persen:x.pct,Terlambat_Periode:x.tPer,Alasan_Terlambat:x.alasan,Lupa_Kartu_Rentang:x.lupaR,Lupa_Kartu_Periode:x.lupaPer,Kelas_Sakit:x.ks,Kelas_Izin:x.ki,Kelas_Tanpa_Keterangan:x.kt,Kelas_Total:x.kTotal})),'rekap-siswa-'+RKS.q.dari+'-sd-'+RKS.q.sampai)};
   $('#kPr').onclick=()=>{
     if(!RKS)return toast('Tampilkan rekap dulu',1);
     const g={};urut().forEach(x=>(g[x.kelas]=g[x.kelas]||[]).push(x));
-    cetakHtml(Object.keys(g).sort().map(k=>htmlRekapSiswa(g[k],namaKelas(k),RKS.q.dari,RKS.q.sampai,RKS.r.hari,RKS.r.punyaKelas)).join(''));
+    cetakHtml(Object.keys(g).sort().map(k=>htmlRekapSiswa(g[k],namaKelas(k),RKS.q.dari,RKS.q.sampai,RKS.r.hari,RKS.r.punyaKelas,RKS.r.info)).join(''));
   };
   $('#tK').onclick=e=>{const b=e.target.closest('button[data-u]');if(b)ubahStatus(b.dataset.u,b.dataset.n)};
 }
@@ -544,12 +553,12 @@ async function pLap(){
     const f={dari:$('#fD').value,sampai:$('#fS').value,kelas:$('#fK').value,nama:$('#fN').value,status:$('#fSt').value,metode:$('#fM').value,tipe:$('#fT').value};
     const r=await api('laporan',f);LR=r.v;
     $('#fInfo').textContent=`${r.total} baris • ${f.dari} s/d ${f.sampai}${f.kelas?' • kelas '+f.kelas:''}${f.status?' • '+f.status:''}${r.total>LR.length?' • Excel berisi maksimal 5000 baris':''}`;
-    $('#tL').innerHTML='<tr><th>Tanggal</th><th>Jam</th><th>NIS</th><th>Nama</th><th>Kelas</th><th>Jenis</th><th>Metode</th><th>Status</th><th>Ket</th><th></th></tr>'+LR.slice(0,500).map(x=>`<tr><td>${esc(x.Tanggal)}</td><td>${esc(x.Waktu.slice(0,5))}</td><td>${esc(x.NIS)}</td><td>${esc(x.Nama)}</td><td>${esc(x.Kelas)}</td><td>${esc(x.Jenis)}</td><td>${esc(x.Metode)}</td><td>${esc(x.Status)}</td><td>${esc(x.Keterangan||'')}</td><td>${me.peran==='Admin'&&x.ID&&x.Status!=='Dibatalkan'&&x.Status!=='Belum presensi'?`<button class="s" data-b="${esc(x.ID)}">Batalkan</button>`:''}</td></tr>`).join('')+(LR.length>500?'<tr><td colspan="10" class="mu">Tampil 500 baris pertama. Unduh Excel untuk semuanya.</td></tr>':'');
+    $('#tL').innerHTML='<tr><th>Tanggal</th><th>Jam</th><th>NIS</th><th>Nama</th><th>Kelas</th><th>Jenis</th><th>Metode</th><th>Status</th><th>Ket</th><th>Alasan terlambat</th><th></th></tr>'+LR.slice(0,500).map(x=>`<tr><td>${esc(x.Tanggal)}</td><td>${esc(x.Waktu.slice(0,5))}</td><td>${esc(x.NIS)}</td><td>${esc(x.Nama)}</td><td>${esc(x.Kelas)}</td><td>${esc(x.Jenis)}</td><td>${esc(x.Metode)}</td><td>${esc(x.Status)}</td><td>${esc(x.Keterangan||'')}</td><td>${esc(x.Alasan||'')}${x.Status==='Terlambat'&&(me.peran==='Admin'||(me.izin&&me.izin.catat_izin))?` <button class="s" data-a="${esc(x.NIS)}" data-t="${esc(x.Tanggal)}" data-s="${esc(x.Alasan||'')}">${x.Alasan?'Ubah':'Isi'}</button>`:''}</td><td>${me.peran==='Admin'&&x.ID&&x.Status!=='Dibatalkan'&&x.Status!=='Belum presensi'?`<button class="s" data-b="${esc(x.ID)}">Batalkan</button>`:''}</td></tr>`).join('')+(LR.length>500?'<tr><td colspan="11" class="mu">Tampil 500 baris pertama. Unduh Excel untuk semuanya.</td></tr>':'');
   });
   $('#bXl').onclick=()=>xl(LR,'laporan-presensi-'+$('#fD').value);
   $('#bPr').onclick=()=>cetak('#cLap');
   if($('#mOk'))$('#mOk').onclick=run(async()=>{const r=await api('presensi_manual',{nis:$('#mN').value,tgl:$('#mT').value,jam:$('#mJ').value,jenis:$('#mK').value,alasan:$('#mA').value});toast('Tercatat: '+r.status);$('#mN').value='';$('#mA').value=''});
-  $('#tL').onclick=run(async e=>{const id=e.target.dataset.b;if(!id)return;const a=prompt('Alasan membatalkan presensi ini (wajib diisi):');if(!a)return;await api('presensi_koreksi',{id,alasan:a});toast('Presensi dibatalkan');$('#bGo').click()});
+  $('#tL').onclick=run(async e=>{const ba=e.target.dataset.a;if(ba){const al=prompt('Alasan terlambat:',e.target.dataset.s||'');if(!al)return;await api('alasan_terlambat',{nis:ba,tgl:e.target.dataset.t,alasan:al});toast('Alasan tersimpan');$('#bGo').click();return}const id=e.target.dataset.b;if(!id)return;const a=prompt('Alasan membatalkan presensi ini (wajib diisi):');if(!a)return;await api('presensi_koreksi',{id,alasan:a});toast('Presensi dibatalkan');$('#bGo').click()});
 }
 
 /* Notifikasi orang tua */

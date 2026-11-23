@@ -83,7 +83,7 @@ table{width:100%;border-collapse:collapse;font-size:13px}td{padding:5px 3px;bord
 <div id="dmAct" style="display:none"><button class="b" id="dmOk" disabled>Ya, benar. Catat presensi</button> <button class="s" id="dmNo">Bukan, ulangi</button></div>
 <label style="display:block;margin-top:10px">Mode presensi</label><select id="mode"><option value="auto">Otomatis (sesuai jam)</option><option value="Masuk">Masuk saja</option><option value="Pulang">Pulang saja</option></select>
 <button class="s" id="dmX2" style="margin-top:6px">Kunci sekarang</button></div></section>
-<dialog id="dk"><div class="konf"><img id="dkF" alt="" style="display:none"><div><div class="mu">Apakah ini anak yang dimaksud?</div><b id="dkN"></b><div class="mu" id="dkI"></div><div class="pill wn" id="dkR" style="margin-top:6px"></div></div></div>
+<dialog id="dk"><div class="konf"><img id="dkF" alt="" style="display:none"><div><div class="mu">Apakah ini anak yang dimaksud?</div><b id="dkN"></b><div class="mu" id="dkI"></div><div class="pill wn" id="dkR" style="margin-top:6px"></div><div id="dkC" class="mu" style="margin-top:8px"></div></div></div>
 <div class="mu">Siswa akan dicatat HADIR sekarang dengan keterangan di atas.</div><br>
 <button class="b" id="dkOk">Ya, benar. Catat hadir</button> <button class="s" id="dkX">Batal</button></dialog>
 <dialog id="dz"><b id="dzT">Catat izin / sakit</b><div class="mu" id="dzN"></div><br>
@@ -193,13 +193,13 @@ function mark(kode,metode){
   sudah[k]=h+'|'+st;
   Q.push({kode,metode,jenis,ts:Date.now()+off,q:0});kv('Q',Q);
   rec.unshift({h,n:p.nama,k:p.kelas,j:jenis,s:st});rec=rec.slice(0,10);
-  tampil(st==='Terlambat'?'wn':'ok',p.nama,p.kelas+' • '+jenis+' • '+st+' • '+h,p);
+  tampil(st==='Terlambat'?'wn':'ok',p.nama,p.kelas+' • '+jenis+' • '+st+' • '+h,p);lengkapi(p,kode,st==='Terlambat'&&jenis==='Masuk',false);
   say(p.nama+(st==='Terlambat'?', terlambat':jenis==='Pulang'?', pulang':', hadir'));
   ringkas();flush();
 }
 async function flush(){
   if(fl||!Q.length||!tok||!API)return;fl=true;
-  const items=Q.slice(0,20);
+  const items=Q.slice(0,20);items.forEach(i=>i.kirim=1); // ditandai sedang dikirim (alasan terlambat setelah ini dikirim lewat permintaan terpisah)
   try{
     const r=await api('hadir',{items});
     Q.splice(0,items.length);
@@ -207,9 +207,10 @@ async function flush(){
       const p=M[items[i].kode];if(!p)return;
       if(x.err){delete sudah[p.nis+'|'+items[i].jenis];tampil('err',(x.nama||x.kode),'Ditolak server: '+x.err,p)}
       else if(x.dup)sudah[p.nis+'|'+x.jenis]=x.jam+'|';
+      else if(x.ok)perbaruiCounter(p.nis,x);
     });
     await kv('Q',Q);fl=false;ringkas();if(Q.length)flush();else if(tab==='belum')loadBelum(true);
-  }catch(e){items.forEach(i=>i.q=1);kv('Q',Q);fl=false}
+  }catch(e){items.forEach(i=>{i.q=1;delete i.kirim});kv('Q',Q);fl=false}
 }
 setInterval(flush,8000);
 window.addEventListener('online',flush);
@@ -430,6 +431,9 @@ function tanyaKartu(s,ket){
   kP=p;kKet=ket;kAt=Date.now();
   $('#dkF').style.display=p.foto?'block':'none';if(p.foto)$('#dkF').src=p.foto;
   $('#dkN').textContent=p.nama;$('#dkI').textContent='Kelas '+p.kelas+' • NIS '+p.nis;$('#dkR').textContent=ket;
+  const dc=$('#dkC');dc.innerHTML='';
+  if(ket==='Lupa bawa kartu'){dc.textContent='Memuat jumlah lupa kartu...';
+    api('counter_siswa',{nis:p.nis}).then(r=>{const n=r.lupa.n,b=r.lupa.batas;dc.innerHTML='Sudah <b>'+n+'</b> kali lupa kartu '+esc(r.lupa.label)+' (batas '+b+')'+(n+1>=b?'<br><b style="color:var(--er)">Pencatatan ini mencapai batas '+b+' kali.</b>':'')}).catch(()=>{dc.textContent=''})}
   $('#dk').showModal();$('#dkOk').focus();
 }
 $('#dkX').onclick=()=>$('#dk').close();
@@ -452,9 +456,50 @@ function catatManual(p,metode,jenis,ket){
   sudah[k]=h+'|'+st;
   Q.push({kode:p.nis,metode,jenis,ts:Date.now()+off,q:0,ket,konf:true});kv('Q',Q);
   rec.unshift({h,n:p.nama,k:p.kelas,j:jenis,s:st});rec=rec.slice(0,10);ringkas();
-  tampil(st==='Terlambat'?'wn':'ok',p.nama,p.kelas+' • '+jenis+' • '+st+' • '+h+' • '+(ket||'manual'),p);
+  tampil(st==='Terlambat'?'wn':'ok',p.nama,p.kelas+' • '+jenis+' • '+st+' • '+h+' • '+(ket||'manual'),p);lengkapi(p,p.nis,st==='Terlambat'&&jenis==='Masuk',ket==='Lupa bawa kartu');
   say(p.nama+(st==='Terlambat'?', terlambat':jenis==='Pulang'?', pulang':', hadir'));
   flush();return true;
+}
+
+/* Alasan terlambat, counter, dan peringatan lupa kartu pada kartu hasil */
+let CARD=null;
+function lengkapi(p,kode,terlambat,lupa){
+  CARD={nis:p.nis,kode:kode,terlambat:terlambat,lupa:lupa};
+  const h=document.querySelector('#hasil>div');if(!h)return;
+  let x='<div id="ctr" class="ctr"></div>';
+  if(terlambat){
+    const als=String((D.st&&D.st.alasan_terlambat)||'').split(',').map(s=>s.trim()).filter(Boolean);
+    x+='<div id="alsBox"><div style="margin-top:8px;font-size:14px">Alasan terlambat (ketuk salah satu):</div><div class="chips">'+als.map(a=>'<button type="button" data-a="'+esc(a)+'">'+esc(a)+'</button>').join('')+'<button type="button" data-a="*">Lainnya...</button></div></div>';
+  }
+  h.insertAdjacentHTML('beforeend',x);
+  const b=$('#alsBox');
+  if(b)b.onclick=e=>{const a=e.target.dataset.a;if(!a)return;let al=a;if(a==='*'){al=(prompt('Tulis alasan terlambat:')||'').trim();if(al.length<2){$('#scan').focus();return}}simpanAlasan(al)};
+}
+async function simpanAlasan(alasan){
+  const c=CARD;if(!c)return;
+  const tunda=Q.find(i=>i.kode===c.kode&&i.jenis==='Masuk'&&!i.kirim);
+  try{
+    if(tunda){tunda.alasan=alasan;kv('Q',Q)} // presensi belum terkirim: alasan ikut dikirim bersamanya
+    else{for(let k=0;k<4;k++){try{await api('alasan_terlambat',{nis:c.nis,alasan});break}catch(e){if(!/belum tercatat/.test(e.message)||k===3)throw e;await new Promise(r=>setTimeout(r,1500))}}}
+    if(CARD!==c)return;
+    const box=$('#alsBox');if(!box)return;
+    box.innerHTML='<div style="margin-top:8px">Alasan: <b>'+esc(alasan)+'</b> ✓ <button type="button" class="s" id="alsWa">WA orang tua</button></div>';
+    $('#alsWa').onclick=async()=>{
+      try{for(let k=0;k<20&&(Q.length||fl);k++)await new Promise(r=>setTimeout(r,300));
+        const r=await api('pesan_wa',{nis:c.nis,jenis:'Terlambat'});
+        if(!r.nomor)return alert('Nomor WhatsApp orang tua belum diisi.');
+        window.open('https://wa.me/'+r.nomor+'?text='+encodeURIComponent(r.pesan),'_blank')}
+      catch(e){alert(e.message)}
+    };
+  }catch(e){alert('Alasan belum tersimpan: '+e.message)}
+  $('#scan').focus();
+}
+function perbaruiCounter(nis,x){
+  if(!CARD||CARD.nis!==nis)return;const c=$('#ctr');if(!c)return;const t=[];
+  if(x.ke)t.push(esc('Terlambat ke-'+x.ke+' '+x.periodeKe));
+  if(x.lupaKe){t.push(esc('Lupa kartu ke-'+x.lupaKe+' '+x.periodeLupa+' (batas '+x.batasLupa+')'));
+    if(x.lupaKe>=x.batasLupa){t.push('<b>BATAS LUPA KARTU TERCAPAI</b>');c.classList.add('bahaya');beep(0);say('Batas lupa kartu tercapai')}}
+  c.innerHTML=t.join('<br>');
 }
 
 /* identitas sekolah + layar siaga */

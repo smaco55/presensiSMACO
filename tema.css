@@ -126,3 +126,9 @@ dialog::backdrop{background:rgba(10,16,24,.5)}
   #pcAll.cetak{display:block!important;position:absolute;left:0;top:0;width:100%}
   .pc,.pc *{color:#000!important;background:transparent!important}
 }
+
+/* alasan terlambat dan counter pada kartu hasil presensi */
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chips button{font:inherit;font-size:13px;padding:6px 12px;border-radius:999px;border:1px solid currentColor;background:rgba(255,255,255,.55);color:inherit;cursor:pointer}
+.ctr{margin-top:6px;font-size:14px;font-weight:600}
+.ctr.bahaya{background:rgba(185,28,28,.15);border:1px solid currentColor;border-radius:8px;padding:6px 8px;color:var(--er)}
