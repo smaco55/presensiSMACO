@@ -104,7 +104,7 @@ const idb=new Promise((ok,no)=>{const r=indexedDB.open('presensi',1);r.onupgrade
 const kv=async(k,v)=>{const d=await idb;return new Promise((ok,no)=>{const s=d.transaction('kv',v===undefined?'readonly':'readwrite').objectStore('kv'),q=v===undefined?s.get(k):s.put(v,k);q.onsuccess=()=>ok(q.result);q.onerror=no})};
 
 let API=window.PRESENSI_API||localStorage.getItem('api')||'',tok=sessionStorage.getItem('tok')||'',me=JSON.parse(sessionStorage.getItem('me')||'null'),
-    D=null,M={},Q=[],off=0,sudah={},rec=[],last={},fl=false,tab='scan',qr=null,t0=0;
+    D=null,M={},Q=[],QA=[],fa=false,off=0,sudah={},rec=[],last={},fl=false,tab='scan',qr=null,t0=0;
 const dev=(navigator.userAgent.match(/\(([^)]+)\)/)||[,''])[1].slice(0,60);
 const jkt=()=>new Date(Date.now()+off).toLocaleTimeString('en-GB',{timeZone:'Asia/Jakarta',hour:'2-digit',minute:'2-digit'});
 
@@ -144,9 +144,9 @@ function buildMap(){M={};MR={};D.orang.forEach(p=>{M[p.nis]=p;M[p.kode]=p;if(p.r
 async function start(){
   if(me&&me.peran==='Guru'){location.replace('kelas.html');return}
   $('#usr').textContent=me.nama;$('#adm').style.display=(me.peran==='Admin'||['laporan_gerbang','lihat_kelas','ubah_status','kelola_data','kelola_akun','pengaturan','lihat_log','notifikasi','koreksi_presensi'].some(x=>me.izin&&me.izin[x]))?'inline':'none';if(me.peran!=='Admin')$('#adm').textContent='Menu lainnya';
-  Q=(await kv('Q'))||[];
+  Q=(await kv('Q'))||[];QA=(await kv('QA'))||[];
   try{await sync(true)}catch(e){const c=await kv('D');if(c){D=c;buildMap();$('#tgl').textContent='(offline) '+(D.tgl||'')}else{$('#sj').textContent='Gagal memuat';return}}
-  drawTabs();flush();ringkas();
+  drawTabs();flush();flushAlasan();ringkas();
 }
 setInterval(()=>{if(tok)sync(false).catch(()=>{})},30000);
 $('#sync').onclick=()=>sync(true).then(()=>say('')).catch(e=>tampil('err','Sinkron gagal',e.message));
@@ -209,7 +209,7 @@ async function flush(){
       else if(x.dup)sudah[p.nis+'|'+x.jenis]=x.jam+'|';
       else if(x.ok)perbaruiCounter(p.nis,x);
     });
-    await kv('Q',Q);fl=false;ringkas();if(Q.length)flush();else if(tab==='belum')loadBelum(true);
+    await kv('Q',Q);fl=false;ringkas();flushAlasan();if(Q.length)flush();else if(tab==='belum')loadBelum(true);
   }catch(e){items.forEach(i=>{i.q=1;delete i.kirim});kv('Q',Q);fl=false}
 }
 setInterval(flush,8000);
@@ -431,9 +431,10 @@ function tanyaKartu(s,ket){
   kP=p;kKet=ket;kAt=Date.now();
   $('#dkF').style.display=p.foto?'block':'none';if(p.foto)$('#dkF').src=p.foto;
   $('#dkN').textContent=p.nama;$('#dkI').textContent='Kelas '+p.kelas+' • NIS '+p.nis;$('#dkR').textContent=ket;
-  const dc=$('#dkC');dc.innerHTML='';
+  const dc=$('#dkC');dc.innerHTML='';$('#dkOk').disabled=false;
   if(ket==='Lupa bawa kartu'){dc.textContent='Memuat jumlah lupa kartu...';
-    api('counter_siswa',{nis:p.nis}).then(r=>{const n=r.lupa.n,b=r.lupa.batas;dc.innerHTML='Sudah <b>'+n+'</b> kali lupa kartu '+esc(r.lupa.label)+' (batas '+b+')'+(n+1>=b?'<br><b style="color:var(--er)">Pencatatan ini mencapai batas '+b+' kali.</b>':'')}).catch(()=>{dc.textContent=''})}
+    const blok=D.st&&D.st.lupa_kartu_blokir==='ya'&&me&&me.peran!=='Admin';
+    api('counter_siswa',{nis:p.nis}).then(r=>{const n=r.lupa.n,b=r.lupa.batas;dc.innerHTML='Sudah <b>'+n+'</b> kali lupa kartu '+esc(r.lupa.label)+' (batas '+b+')'+(blok&&n>=b?'<br><b style="color:var(--er)">Batas tercapai: tidak dapat dicatat. Hubungi BK atau admin.</b>':(n+1>=b?'<br><b style="color:var(--er)">Pencatatan ini mencapai batas '+b+' kali.</b>':''));$('#dkOk').disabled=!!(blok&&n>=b)}).catch(()=>{dc.textContent=''})}
   $('#dk').showModal();$('#dkOk').focus();
 }
 $('#dkX').onclick=()=>$('#dk').close();
@@ -469,31 +470,58 @@ function lengkapi(p,kode,terlambat,lupa){
   let x='<div id="ctr" class="ctr"></div>';
   if(terlambat){
     const als=String((D.st&&D.st.alasan_terlambat)||'').split(',').map(s=>s.trim()).filter(Boolean);
-    x+='<div id="alsBox"><div style="margin-top:8px;font-size:14px">Alasan terlambat (ketuk salah satu):</div><div class="chips">'+als.map(a=>'<button type="button" data-a="'+esc(a)+'">'+esc(a)+'</button>').join('')+'<button type="button" data-a="*">Lainnya...</button></div></div>';
+    x+='<div id="alsBox"><div class="alsT">Alasan terlambat (ketuk salah satu):</div><div class="chips">'+als.map(a=>'<button type="button" data-a="'+esc(a)+'">'+esc(a)+'</button>').join('')+'<button type="button" class="lain" data-a="*">Lainnya...</button></div></div>';
   }
   h.insertAdjacentHTML('beforeend',x);
   const b=$('#alsBox');
-  if(b)b.onclick=e=>{const a=e.target.dataset.a;if(!a)return;let al=a;if(a==='*'){al=(prompt('Tulis alasan terlambat:')||'').trim();if(al.length<2){$('#scan').focus();return}}simpanAlasan(al)};
+  if(b)b.onclick=e=>{const a=e.target.dataset.a;if(!a)return;
+    if(a==='*'){ // isian alasan lain langsung di kartu (tanpa kotak dialog yang memblokir layar)
+      b.innerHTML='<div class="alsT">Tulis alasan terlambat:</div><div class="alsF"><input id="alsTxt" maxlength="50" placeholder="Alasan singkat..." autocomplete="off"><button type="button" class="b" id="alsOk">Simpan</button></div>';
+      const t=$('#alsTxt'),ok=()=>{const v=t.value.trim();if(v.length<2){t.focus();return}simpanAlasan(v)};
+      $('#alsOk').onclick=ok;t.onkeydown=ev=>{if(ev.key==='Enter'){ev.preventDefault();ok()}};t.focus();return}
+    simpanAlasan(a)};
 }
-async function simpanAlasan(alasan){
+/* Alasan tampil seketika, lalu dikirim di latar belakang lewat antrean (tahan offline / koneksi lambat, tidak hilang bila halaman dimuat ulang). */
+function simpanAlasan(alasan){
   const c=CARD;if(!c)return;
-  const tunda=Q.find(i=>i.kode===c.kode&&i.jenis==='Masuk'&&!i.kirim);
-  try{
-    if(tunda){tunda.alasan=alasan;kv('Q',Q)} // presensi belum terkirim: alasan ikut dikirim bersamanya
-    else{for(let k=0;k<4;k++){try{await api('alasan_terlambat',{nis:c.nis,alasan});break}catch(e){if(!/belum tercatat/.test(e.message)||k===3)throw e;await new Promise(r=>setTimeout(r,1500))}}}
-    if(CARD!==c)return;
-    const box=$('#alsBox');if(!box)return;
-    box.innerHTML='<div style="margin-top:8px">Alasan: <b>'+esc(alasan)+'</b> ✓ <button type="button" class="s" id="alsWa">WA orang tua</button></div>';
+  const i=QA.findIndex(x=>x.nis===c.nis);const e={nis:c.nis,kode:c.kode,alasan:alasan,n:0};
+  if(i>=0)QA[i]=e;else QA.push(e);kv('QA',QA);
+  const box=$('#alsBox');
+  if(box){
+    box.innerHTML='<div class="alsT">Alasan: <b>'+esc(alasan)+'</b> <span id="alsSt" class="mu2">• menyimpan...</span> <button type="button" class="s" id="alsWa">WA orang tua</button></div>';
     $('#alsWa').onclick=async()=>{
-      try{for(let k=0;k<20&&(Q.length||fl);k++)await new Promise(r=>setTimeout(r,300));
+      try{for(let k=0;k<60&&(Q.length||fl||QA.length||fa);k++){await new Promise(r=>setTimeout(r,300));if(!fa&&QA.length)flushAlasan()}
         const r=await api('pesan_wa',{nis:c.nis,jenis:'Terlambat'});
         if(!r.nomor)return alert('Nomor WhatsApp orang tua belum diisi.');
         window.open('https://wa.me/'+r.nomor+'?text='+encodeURIComponent(r.pesan),'_blank')}
       catch(e){alert(e.message)}
     };
-  }catch(e){alert('Alasan belum tersimpan: '+e.message)}
-  $('#scan').focus();
+  }
+  $('#scan').focus();flushAlasan();
 }
+async function flushAlasan(){
+  if(fa||!QA.length||!tok||!API)return;fa=true;
+  try{
+    for(let guard=0;guard<50&&QA.length;guard++){
+      const e=QA[0];
+      const tunda=Q.find(i=>i.kode===e.kode&&i.jenis==='Masuk'&&!i.kirim);
+      if(tunda){tunda.alasan=e.alasan;await kv('Q',Q);QA.shift();await kv('QA',QA);tandaiAlasan(e.nis,true);continue} // presensi belum terkirim: alasan ikut bersamanya
+      if(Q.some(i=>i.kode===e.kode&&i.jenis==='Masuk'))break; // presensinya sedang dikirim: tunggu sampai tercatat di server
+      try{await api('alasan_terlambat',{nis:e.nis,alasan:e.alasan});QA.shift();await kv('QA',QA);tandaiAlasan(e.nis,true)}
+      catch(er){
+        if(/Sesi berakhir/.test(er.message))break;
+        if(/belum tercatat/.test(er.message)&&++e.n<6){await kv('QA',QA);break} // masih diproses server: coba lagi nanti
+        if(/belum tercatat|tidak tercatat terlambat|terlalu pendek|bukan di kelas|tidak ditemukan/i.test(er.message)){QA.shift();await kv('QA',QA);tandaiAlasan(e.nis,false,er.message);continue}
+        break; // gangguan jaringan: coba lagi otomatis
+      }
+    }
+  }finally{fa=false}
+}
+function tandaiAlasan(nis,ok,pesan){
+  if(!CARD||CARD.nis!==nis)return;const s=$('#alsSt');if(!s)return;
+  if(ok){s.textContent='✓ tersimpan';s.className='mu2 oke'}else{s.textContent='✗ gagal: '+pesan;s.className='mu2 gagal'}
+}
+setInterval(flushAlasan,5000);
 function perbaruiCounter(nis,x){
   if(!CARD||CARD.nis!==nis)return;const c=$('#ctr');if(!c)return;const t=[];
   if(x.ke)t.push(esc('Terlambat ke-'+x.ke+' '+x.periodeKe));
